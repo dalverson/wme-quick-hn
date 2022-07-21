@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN
 // @description  Quick House Numbers
-// @version      0.12
+// @version      2022.07.21.01
 // @author       Vinkoy
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @namespace    https://greasyfork.org/en/scripts/21378-wme-quick-hn
@@ -62,7 +62,7 @@ function initialiseQuickHN()
         {
             for (var i = 0; i < mutation.addedNodes.length; i++)
             {
-                if (mutation.addedNodes[i].nodeType === Node.ELEMENT_NODE && mutation.addedNodes[i].querySelector('div.selection'))
+                if (mutation.addedNodes[i].nodeType === Node.ELEMENT_NODE && mutation.addedNodes[i].querySelector('div.segment-edit-section'))
                 {
                     addTab();
                     if (document.getElementById("WME-Quick-HN")) localDataManager();
@@ -144,30 +144,29 @@ function addTab()
         if (!(userTabs && getElementsByClassName('nav-tabs', userTabs)))
             return;
 
-        var navTabs = getElementsByClassName('nav-tabs', userTabs)[0];
+        var navTabs = document.getElementById('edit-panel').getElementsByTagName('wz-tabs')[0];
         if (typeof navTabs !== "undefined")
         {
-            if (!getElementsByClassName('tab-content', userTabs))
-                return;
 
-            var tabContent = getElementsByClassName('tab-content', userTabs)[0];
+            var tabContent = getElementsByClassName('segment-edit-section', userTabs)[0];
 
             if (typeof tabContent !== "undefined")
             {
-                newtab = document.createElement('li');
-                newtab.innerHTML = '<a href="#WME-Quick-HN" id="wmequickhn" data-toggle="tab">Quick HN</a>';
-                navTabs.appendChild(newtab);
+                var quickTab = document.createElement('wz-tab');
+                quickTab.id = 'wmequickhn';
+                quickTab.label = 'Quick HN';
+                navTabs.appendChild(quickTab);
 
                 btnSection.innerHTML = '<div class="form-group">'+
-                    '<h4>&nbsp;Quick House Numbers&nbsp;<sup>' + GM_info.script.version + '</sup>&nbsp;</h4>' +
+                    '<b>Quick House Numbers</b> v' + GM_info.script.version +
                     '</br>' +
                     '<div title="House number"><b>House number </b><input type="number" id="_housenumber" style="width: 60px;"/></div>' +
                     '<div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>' +
                     '<div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>' +
                     '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>';
 
-                btnSection.className = "tab-pane";
-                tabContent.appendChild(btnSection);
+                btnSection.className = "quickhn";
+                quickTab.appendChild(btnSection);
             }
             else
             {
@@ -179,10 +178,13 @@ function addTab()
             btnSection.id='';
         }
 
-        document.getElementById('_housenumber').value = counter + 1;
-        document.getElementById('_housenumber').onchange = function(){
-            counter = document.getElementById('_housenumber').value - 1;
-        };
+        var hn = document.getElementById('_housenumber');
+        if (hn) {
+            document.getElementById('_housenumber').value = counter + 1;
+            document.getElementById('_housenumber').onchange = function(){
+                counter = document.getElementById('_housenumber').value - 1;
+            };
+        }
     }
 }
 
@@ -228,7 +230,7 @@ function setFocus()
 
 function sethn() {
    var hn = $('div.olLayerDiv.house-numbers-layer div.house-number div.content.active:not(".new") input.number');
-    if (hn[0].placeholder == I18n.translations[I18n.locale].edit.segment.house_numbers.no_number && hn.val() === "")
+   if (hn[0].placeholder == I18n.translations[I18n.locale].edit.segment.house_numbers.no_number && hn.val() === "")
    {
       counter = +counter + +interval;
       if (document.getElementById('_housenumber') !== null )
