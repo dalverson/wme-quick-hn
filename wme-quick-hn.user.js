@@ -1,12 +1,17 @@
 // ==UserScript==
-// @name         WME Quick HN
+// @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2022.07.21.01
-// @author       Vinkoy
-// @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
-// @namespace    https://greasyfork.org/en/scripts/21378-wme-quick-hn
+// @version      2023.01.21.01
+// @author       Vinkoy (forked by DaveAcincy)
+// @match        https://beta.waze.com/*editor*
+// @match        https://www.waze.com/*editor*
+// @exclude      https://www.waze.com/*user/*editor/*
+// @namespace    https://greasyfork.org/users/166713
 // @grant        none
 // ==/UserScript==
+
+/* global W */
+/* global I18n */
 
 (function() {
     var counter = 0;
@@ -54,8 +59,25 @@ function quickHN_bootstrap()
     setTimeout(initialiseQuickHN, 999);
 }
 
+function createShortcut(id, desc, func, kcode)
+{
+    I18n.translations[I18n.locale].keyboard_shortcuts.groups.wmeqhn.members[id] = desc;
+    var short = {};
+    short[kcode] = id;
+    W.accelerators.addAction(id, {group: 'wmeqhn'});
+    W.accelerators.events.register(id, null, func);
+    W.accelerators._registerShortcuts(short);
+}
+
 function initialiseQuickHN()
 {
+    var ep = document.getElementById('edit-panel');
+    var lb = document.getElementById('map-lightbox');
+    if ( !ep || !lb) {
+        setTimeout(initialiseQuickHN, 200);
+        return;
+    }
+
     var editPanelChange = new MutationObserver(function(mutations)
     {
         mutations.forEach(function(mutation)
@@ -70,7 +92,7 @@ function initialiseQuickHN()
             }
         });
     });
-    editPanelChange.observe(document.getElementById('edit-panel'), { childList: true, subtree: true });
+    editPanelChange.observe(ep, { childList: true, subtree: true });
 
     var hnWindowShow = new MutationObserver(function(mutations)
     {
@@ -81,22 +103,29 @@ function initialiseQuickHN()
             }
         });
     });
-    hnWindowShow.observe(document.getElementById('map-lightbox'), { childList: true, subtree: true } );
+    hnWindowShow.observe(lb, { childList: true, subtree: true } );
 
-    I18n.translations[I18n.locale].keyboard_shortcuts.groups['default'].members.WME_QHN_newHN = "New HN (+1)";
-    W.accelerators.addAction("WME_QHN_newHN", {group: 'default'});
-    W.accelerators.events.register("WME_QHN_newHN", null, addHN);
-    W.accelerators._registerShortcuts({ 't' : "WME_QHN_newHN"});
+    let group = "wmeqhn";
+    W.accelerators.Groups[group] = [];
+    W.accelerators.Groups[group].members = [];
+    I18n.translations[I18n.currentLocale()].keyboard_shortcuts.groups[group] = [];
+    I18n.translations[I18n.currentLocale()].keyboard_shortcuts.groups[group].description = "Quick HN";
+    I18n.translations[I18n.currentLocale()].keyboard_shortcuts.groups[group].members = [];
 
-    I18n.translations[I18n.locale].keyboard_shortcuts.groups['default'].members.WME_QHN_newHN2 = "New HN (+2)";
-    W.accelerators.addAction("WME_QHN_newHN2", {group: 'default'});
-    W.accelerators.events.register("WME_QHN_newHN2", null, addHN2);
-    W.accelerators._registerShortcuts({ 'r' : "WME_QHN_newHN2"});
+    createShortcut("WME_QHN_newHN01", "New HN (+1)", addHN1, "t");
+    createShortcut("WME_QHN_newHN02", "New HN (+2)", addHN2, "r");
+    createShortcut("WME_QHN_newHNcust", "New HN (+CUSTOM_VALUE)", addHNcustom, "e");
+    createShortcut("WME_QHN_newHN1", "New HN (+1)", addHN1, "1");
+    createShortcut("WME_QHN_newHN2", "New HN (+2)", addHN2, "2");
+    createShortcut("WME_QHN_newHN3", "New HN (+3)", addHN3, "3");
+    createShortcut("WME_QHN_newHN4", "New HN (+4)", addHN4, "4");
+    createShortcut("WME_QHN_newHN5", "New HN (+5)", addHN5, "5");
+    createShortcut("WME_QHN_newHN6", "New HN (+6)", addHN6, "6");
+    createShortcut("WME_QHN_newHN7", "New HN (+7)", addHN7, "7");
+    createShortcut("WME_QHN_newHN8", "New HN (+8)", addHN8, "8");
+    createShortcut("WME_QHN_newHN9", "New HN (+9)", addHN9, "9");
+    createShortcut("WME_QHN_newHN10","New HN (+10)", addHN10, "0");
 
-    I18n.translations[I18n.locale].keyboard_shortcuts.groups['default'].members.WME_QHN_newHN3 = "New HN (+CUSTOM_VALUE)";
-    W.accelerators.addAction("WME_QHN_newHN3", {group: 'default'});
-    W.accelerators.events.register("WME_QHN_newHN3", null, addHN3);
-    W.accelerators._registerShortcuts({ 'e' : "WME_QHN_newHN3"});
 }
 
 function localDataManager()
@@ -138,13 +167,18 @@ function addTab()
 {
     if(!document.getElementById("WME-Quick-HN") && W.selectionManager.getSelectedFeatures().length > 0 && W.selectionManager.getSelectedFeatures()[0].model.type === 'segment')
     {
-        var btnSection = document.createElement('div');
-        btnSection.id = 'WME-Quick-HN';
         var userTabs = document.getElementById('edit-panel');
         if (!(userTabs && getElementsByClassName('nav-tabs', userTabs)))
             return;
 
         var navTabs = document.getElementById('edit-panel').getElementsByTagName('wz-tabs')[0];
+        if (!navTabs) {
+            setTimeout(addTab, 200);
+            return;
+        }
+
+        var btnSection = document.createElement('div');
+        btnSection.id = 'WME-Quick-HN';
         if (typeof navTabs !== "undefined")
         {
 
@@ -163,7 +197,9 @@ function addTab()
                     '<div title="House number"><b>House number </b><input type="number" id="_housenumber" style="width: 60px;"/></div>' +
                     '<div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>' +
                     '<div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>' +
-                    '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>';
+                    '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>' +
+                    '<div>Press <b>1 - 9</b> to add <u>HN +x</u></div>' +
+                    '<div>Press <b>0</b> to add <u>HN +10</u></div>';
 
                 btnSection.className = "quickhn";
                 quickTab.appendChild(btnSection);
@@ -199,19 +235,18 @@ function getElementsByClassName(classname, node) {
     return a;
 }
 
-function addHN()
-{
-    interval = 1;
-    setFocus();
-}
+function addHN1() { interval = 1; setFocus(); }
+function addHN2() { interval = 2; setFocus(); }
+function addHN3() { interval = 3; setFocus(); }
+function addHN4() { interval = 4; setFocus(); }
+function addHN5() { interval = 5; setFocus(); }
+function addHN6() { interval = 6; setFocus(); }
+function addHN7() { interval = 7; setFocus(); }
+function addHN8() { interval = 8; setFocus(); }
+function addHN9() { interval = 9; setFocus(); }
+function addHN10() { interval = 10; setFocus(); }
 
-function addHN2()
-{
-    interval = 2;
-    setFocus();
-}
-
-function addHN3()
+function addHNcustom()
 {
     interval = document.getElementById('_custominterval').value;
     setFocus();
