@@ -1,17 +1,19 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2023.01.21.01
+// @version      2023.01.31.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
 // @exclude      https://www.waze.com/*user/*editor/*
 // @namespace    https://greasyfork.org/users/166713
+// @homepage     https://www.waze.com/forum/viewtopic.php?t=371460
 // @grant        none
 // ==/UserScript==
 
 /* global W */
 /* global I18n */
+/* global $ */
 
 (function() {
     var counter = 0;
@@ -187,11 +189,11 @@ function addTab()
             if (typeof tabContent !== "undefined")
             {
                 var quickTab = document.createElement('wz-tab');
-                quickTab.id = 'wmequickhn';
+                quickTab.className = 'wmequickhn-tab';
                 quickTab.label = 'Quick HN';
                 navTabs.appendChild(quickTab);
 
-                btnSection.innerHTML = '<div class="form-group">'+
+                btnSection.innerHTML = '<div>'+
                     '<b>Quick House Numbers</b> v' + GM_info.script.version +
                     '</br>' +
                     '<div title="House number"><b>House number </b><input type="number" id="_housenumber" style="width: 60px;"/></div>' +
@@ -203,6 +205,27 @@ function addTab()
 
                 btnSection.className = "quickhn";
                 quickTab.appendChild(btnSection);
+                quickTab.setAttribute("is-active","false");
+
+                var tabChange = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.type === "attributes" && mutation.attributeName == "is-active") {
+                            if (mutation.target.isActive) {
+                                var tabs = document.getElementById('edit-panel').getElementsByTagName('wz-tabs')[0].getElementsByTagName('wz-tab');
+                                for (var i=0; i < tabs.length; i++) {
+                                    if (tabs[i] != quickTab) {
+                                        tabs[i].setAttribute("is-active","false");
+                                    }
+                                }
+                                mutation.target.style.display="block";
+                            }
+                            else {
+                                mutation.target.style.display="none";
+                            }
+                        }
+                    });
+                });
+                tabChange.observe(quickTab, { attributes: true });
             }
             else
             {
@@ -257,7 +280,7 @@ function setFocus()
     $('#toolbar .add-house-number').click();
     $('#toolbar .add-house-number').click();
     var hn = getElementsByClassName("number");
-    for (i=0; i<hn.length; i++)
+    for (var i=0; i<hn.length; i++)
     {
             hn[i].onfocus = function() { sethn(); };
     }
