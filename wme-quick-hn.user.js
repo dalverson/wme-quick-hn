@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2023.01.31.01
+// @version      2023.04.20.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -18,6 +18,20 @@
 (function() {
     var counter = 0;
     var interval = 1;
+    var policySafeHTML = null;
+
+function setupPolicy() {
+    if (typeof trustedTypes !== "undefined") {
+        policySafeHTML = trustedTypes.createPolicy("policySafeHTML", {createHTML:innerText => innerText});
+    }
+}
+function createSafeHtml(text) {
+    if (policySafeHTML !== null) {
+        return policySafeHTML.createHTML(text);
+    } else {
+        return text;
+    }
+}
 
 function quickHN_bootstrap()
 {
@@ -56,8 +70,7 @@ function quickHN_bootstrap()
 		return;
 	}
 
-    oWaze.selectionManager.events.register("selectionchanged", null, addTab);
-
+    setupPolicy();
     setTimeout(initialiseQuickHN, 999);
 }
 
@@ -71,6 +84,10 @@ function createShortcut(id, desc, func, kcode)
     W.accelerators._registerShortcuts(short);
 }
 
+function log(message) {
+    console.log('QuickHN: ' + message);
+}
+
 function initialiseQuickHN()
 {
     var ep = document.getElementById('edit-panel');
@@ -80,21 +97,7 @@ function initialiseQuickHN()
         return;
     }
 
-    var editPanelChange = new MutationObserver(function(mutations)
-    {
-        mutations.forEach(function(mutation)
-        {
-            for (var i = 0; i < mutation.addedNodes.length; i++)
-            {
-                if (mutation.addedNodes[i].nodeType === Node.ELEMENT_NODE && mutation.addedNodes[i].querySelector('div.segment-edit-section'))
-                {
-                    addTab();
-                    if (document.getElementById("WME-Quick-HN")) localDataManager();
-                }
-            }
-        });
-    });
-    editPanelChange.observe(ep, { childList: true, subtree: true });
+    W.editingMediator.on({ 'change:editingHouseNumbers': onChangeHNMode });
 
     var hnWindowShow = new MutationObserver(function(mutations)
     {
@@ -127,7 +130,22 @@ function initialiseQuickHN()
     createShortcut("WME_QHN_newHN8", "New HN (+8)", addHN8, "8");
     createShortcut("WME_QHN_newHN9", "New HN (+9)", addHN9, "9");
     createShortcut("WME_QHN_newHN10","New HN (+10)", addHN10, "0");
+    log("initialize complete");
+}
 
+function wme_saveQuickHNOptions()
+{
+    if (localStorage)
+    {
+        var options = [];
+        // preserve previous options which may get lost after logout
+        if (localStorage.WMEquickHN)
+            options = JSON.parse(localStorage.WMEquickHN);
+
+        options[1] = document.getElementById('_custominterval').value;
+
+        localStorage.WMEquickHN = JSON.stringify(options);
+    }
 }
 
 function localDataManager()
@@ -135,7 +153,7 @@ function localDataManager()
     // restore saved settings
     if (localStorage.WMEquickHN)
     {
-        options = JSON.parse(localStorage.WMEquickHN);
+        var options = JSON.parse(localStorage.WMEquickHN);
         if(options[1] !== undefined)
             document.getElementById('_custominterval').value = options[1];
         else
@@ -145,29 +163,21 @@ function localDataManager()
     {
         document.getElementById('_custominterval').value = 4;
     }
-    // overload the WME exit function
-    wme_saveQuickHNOptions = function()
-    {
-        if (localStorage)
-        {
-            var options = [];
-
-            // preserve previous options which may get lost after logout
-            if (localStorage.WMEquickHN)
-                options = JSON.parse(localStorage.WMEquickHN);
-
-            options[1] = document.getElementById('_custominterval').value;
-
-            localStorage.WMEquickHN = JSON.stringify(options);
-        }
-    };
     document.getElementById('_custominterval').onchange = wme_saveQuickHNOptions;
     window.addEventListener("beforeunload", wme_saveQuickHNOptions, false);
 }
 
-function addTab()
+async function onChangeHNMode()
 {
-    if(!document.getElementById("WME-Quick-HN") && W.selectionManager.getSelectedFeatures().length > 0 && W.selectionManager.getSelectedFeatures()[0].model.type === 'segment')
+    if (!W.editingMediator.attributes.editingHouseNumbers) {
+        if(document.getElementById("WME-Quick-HN")) {
+            $('#WME-Quick-HN').remove();
+            $('.wmequickhn-tab').remove();
+            await new Promise(r => setTimeout(r,100));
+            activateEditTab(0);
+        }
+    }
+    if(!document.getElementById("WME-Quick-HN") && W.editingMediator.attributes.editingHouseNumbers)
     {
         var userTabs = document.getElementById('edit-panel');
         if (!(userTabs && getElementsByClassName('nav-tabs', userTabs)))
@@ -175,7 +185,7 @@ function addTab()
 
         var navTabs = document.getElementById('edit-panel').getElementsByTagName('wz-tabs')[0];
         if (!navTabs) {
-            setTimeout(addTab, 200);
+            setTimeout(onChangeHNMode, 200);
             return;
         }
 
@@ -183,7 +193,6 @@ function addTab()
         btnSection.id = 'WME-Quick-HN';
         if (typeof navTabs !== "undefined")
         {
-
             var tabContent = getElementsByClassName('segment-edit-section', userTabs)[0];
 
             if (typeof tabContent !== "undefined")
@@ -193,7 +202,7 @@ function addTab()
                 quickTab.label = 'Quick HN';
                 navTabs.appendChild(quickTab);
 
-                btnSection.innerHTML = '<div>'+
+                btnSection.innerHTML = createSafeHtml('<div>'+
                     '<b>Quick House Numbers</b> v' + GM_info.script.version +
                     '</br>' +
                     '<div title="House number"><b>House number </b><input type="number" id="_housenumber" style="width: 60px;"/></div>' +
@@ -201,11 +210,12 @@ function addTab()
                     '<div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>' +
                     '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>' +
                     '<div>Press <b>1 - 9</b> to add <u>HN +x</u></div>' +
-                    '<div>Press <b>0</b> to add <u>HN +10</u></div>';
+                    '<div>Press <b>0</b> to add <u>HN +10</u></div>');
 
                 btnSection.className = "quickhn";
                 quickTab.appendChild(btnSection);
                 quickTab.setAttribute("is-active","false");
+                localDataManager();
 
                 var tabChange = new MutationObserver(function(mutations) {
                     mutations.forEach(function(mutation) {
@@ -226,6 +236,8 @@ function addTab()
                     });
                 });
                 tabChange.observe(quickTab, { attributes: true });
+                await new Promise(r => setTimeout(r,100));
+                activateEditTab(-1);
             }
             else
             {
@@ -244,6 +256,16 @@ function addTab()
                 counter = document.getElementById('_housenumber').value - 1;
             };
         }
+    }
+}
+
+function activateEditTab(ind) {
+    var ed = getElementsByClassName('segment-feature-editor');
+    var tabs = ed[0].querySelector('wz-tabs');
+    var tl = tabs.shadowRoot.querySelectorAll('.wz-tab-label');
+    if ( tl && tl.length > 0) {
+        if (ind < 0) ind = tl.length + ind;
+        tl[ind].click();
     }
 }
 
@@ -271,7 +293,10 @@ function addHN10() { interval = 10; setFocus(); }
 
 function addHNcustom()
 {
+    var temp = document.getElementById('_custominterval');
+    // log("add cust el: " + temp.parentElement.innerText);
     interval = document.getElementById('_custominterval').value;
+    // log("add cust " + interval);
     setFocus();
 }
 
@@ -290,6 +315,7 @@ function sethn() {
    var hn = $('div.olLayerDiv.house-numbers-layer div.house-number div.content.active:not(".new") input.number');
    if (hn[0].placeholder == I18n.translations[I18n.locale].edit.segment.house_numbers.no_number && hn.val() === "")
    {
+      // log("sethn ctr " + counter + " ival " + interval);
       counter = +counter + +interval;
       if (document.getElementById('_housenumber') !== null )
          document.getElementById('_housenumber').value = counter + 1;
