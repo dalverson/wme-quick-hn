@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2023.04.20.01
+// @version      2023.07.11.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -19,6 +19,7 @@
     var counter = 0;
     var interval = 1;
     var policySafeHTML = null;
+    var hnlayerobserver = null;
 
 function setupPolicy() {
     if (typeof trustedTypes !== "undefined") {
@@ -109,6 +110,23 @@ function initialiseQuickHN()
         });
     });
     hnWindowShow.observe(lb, { childList: true, subtree: true } );
+    hnlayerobserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            // Mutation is a NodeList and doesn't support forEach like an array
+            for (var i = 0; i < mutation.addedNodes.length; i++) {
+                var addedNode = mutation.addedNodes[i];
+
+                // Only fire up if it's a node
+                if (addedNode.nodeType === Node.ELEMENT_NODE && addedNode.classList.contains('is-active')) {
+                    var x = addedNode.querySelector('input');
+                    if (x !== undefined) {
+                        x.onfocus = function() { sethn(); };
+                    }
+                }
+            }
+
+        });
+    });
 
     let group = "wmeqhn";
     W.accelerators.Groups[group] = [];
@@ -179,6 +197,7 @@ async function onChangeHNMode()
     }
     if(!document.getElementById("WME-Quick-HN") && W.editingMediator.attributes.editingHouseNumbers)
     {
+        await new Promise(r => setTimeout(r,20));
         var userTabs = document.getElementById('edit-panel');
         if (!(userTabs && getElementsByClassName('nav-tabs', userTabs)))
             return;
@@ -236,7 +255,8 @@ async function onChangeHNMode()
                     });
                 });
                 tabChange.observe(quickTab, { attributes: true });
-                await new Promise(r => setTimeout(r,100));
+
+                await new Promise(r => setTimeout(r,50));
                 activateEditTab(-1);
             }
             else
@@ -300,28 +320,48 @@ function addHNcustom()
     setFocus();
 }
 
-function setFocus()
+async function setFocus()
 {
     $('#toolbar .add-house-number').click();
     $('#toolbar .add-house-number').click();
-    var hn = getElementsByClassName("number");
-    for (var i=0; i<hn.length; i++)
+    var hn = getElementsByClassName("number-preview");
+    /*for (var i=0; i<hn.length; i++)
     {
             hn[i].onfocus = function() { sethn(); };
-    }
+    }*/
+    await new Promise(r => setTimeout(r,100));
+    var hnlayer = getElementsByClassName("house-numbers-layer");
+    hnlayerobserver.observe(hnlayer[0], { childList: true });
 }
 
-function sethn() {
-   var hn = $('div.olLayerDiv.house-numbers-layer div.house-number div.content.active:not(".new") input.number');
-   if (hn[0].placeholder == I18n.translations[I18n.locale].edit.segment.house_numbers.no_number && hn.val() === "")
-   {
-      // log("sethn ctr " + counter + " ival " + interval);
-      counter = +counter + +interval;
-      if (document.getElementById('_housenumber') !== null )
-         document.getElementById('_housenumber').value = counter + 1;
-      hn.val(counter).change();
-      $("div#WazeMap").focus();
-   }
+// this may be a hack but works for now.  https://stackoverflow.com/questions/30683628/react-js-setting-value-of-input
+function setNativeValue(element, value) {
+    let lastValue = element.value;
+    element.value = value;
+    let event = new Event("input", { target: element, bubbles: true });
+    // React 15
+    event.simulated = true;
+    // React 16
+    let tracker = element._valueTracker;
+    if (tracker) {
+        tracker.setValue(lastValue);
+    }
+    element.dispatchEvent(event);
+}
+
+async function sethn() {
+    var hn = $('div.olLayerDiv.house-numbers-layer div.house-number div.content.active:not(".new") input.number');
+    if (hn[0].placeholder == I18n.translations[I18n.locale].edit.segment.house_numbers.no_number && hn.val() === "")
+    {
+        // log("sethn ctr " + counter + " ival " + interval);
+        counter = +counter + +interval;
+        if (document.getElementById('_housenumber') !== null )
+            document.getElementById('_housenumber').value = counter + 1;
+        setNativeValue(hn[0], counter);
+        await new Promise(r => setTimeout(r,10));
+        $("div#WazeMap").focus();
+        hnlayerobserver.disconnect();
+    }
 }
 
 quickHN_bootstrap();
