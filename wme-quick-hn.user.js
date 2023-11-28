@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2023.07.11.01
+// @version      2023.11.28.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -20,6 +20,10 @@
     var interval = 1;
     var policySafeHTML = null;
     var hnlayerobserver = null;
+    var hnWatch = null;
+    var autoSetHN = false;
+    var debug = false;
+    var fillnext = false;
 
 function setupPolicy() {
     if (typeof trustedTypes !== "undefined") {
@@ -36,43 +40,13 @@ function createSafeHtml(text) {
 
 function quickHN_bootstrap()
 {
-    var oWaze=W;
-	var oI18n=I18n;
-
-	if (typeof unsafeWindow !== "undefined")
-	{
-		oWaze=unsafeWindow.W;
-		oI18n=unsafeWindow.I18n;
-	}
-
-	if (typeof oWaze === "undefined")
-	{
-		setTimeout(quickHN_bootstrap, 500);
-		return;
-	}
-	if (typeof oWaze.map === "undefined")
-	{
-		setTimeout(quickHN_bootstrap, 500);
-		return;
-	}
-	if (typeof oWaze.selectionManager === "undefined")
-	{
-		setTimeout(quickHN_bootstrap, 500);
-		return;
-	}
-	if (typeof oI18n === "undefined")
-	{
-		setTimeout(quickHN_bootstrap, 500);
-		return;
-	}
-	if (typeof oI18n.translations === "undefined")
-	{
-		setTimeout(quickHN_bootstrap, 500);
-		return;
-	}
-
-    setupPolicy();
-    setTimeout(initialiseQuickHN, 999);
+    if (typeof W === 'object' && W.userscripts?.state.isReady) {
+        initialiseQuickHN();
+    } else {
+        document.addEventListener("wme-ready", initialiseQuickHN, {
+            once: true,
+        });
+    }
 }
 
 function createShortcut(id, desc, func, kcode)
@@ -89,6 +63,19 @@ function log(message) {
     console.log('QuickHN: ' + message);
 }
 
+function dlog(message) {
+    if (debug) { console.log('QuickHN# ' + message); }
+}
+function tlog(message) {
+    const t = new Date;
+    const h = t.getHours();
+    const m = t.getMinutes();
+    const s = t.getSeconds();
+    const hms = h + ":" + m + ":" + s;
+    const ms = ('00' + t.getMilliseconds()).slice(-3);
+    if (debug) { console.log('QHN:' + hms +'.'+ ms + ': ' + message); }
+}
+
 function initialiseQuickHN()
 {
     var ep = document.getElementById('edit-panel');
@@ -98,6 +85,7 @@ function initialiseQuickHN()
         return;
     }
 
+    setupPolicy();
     W.editingMediator.on({ 'change:editingHouseNumbers': onChangeHNMode });
 
     var hnWindowShow = new MutationObserver(function(mutations)
@@ -161,6 +149,7 @@ function wme_saveQuickHNOptions()
             options = JSON.parse(localStorage.WMEquickHN);
 
         options[1] = document.getElementById('_custominterval').value;
+        options[2] = autoSetHN;
 
         localStorage.WMEquickHN = JSON.stringify(options);
     }
@@ -176,11 +165,14 @@ function localDataManager()
             document.getElementById('_custominterval').value = options[1];
         else
             document.getElementById('_custominterval').value = 4;
+        if(options[2] !== undefined)
+            autoSetHN = options[2];
     }
     else
     {
         document.getElementById('_custominterval').value = 4;
     }
+    // $('#quickHNAutoSetHNCheckBox').prop('checked', autoSetHN);
     document.getElementById('_custominterval').onchange = wme_saveQuickHNOptions;
     window.addEventListener("beforeunload", wme_saveQuickHNOptions, false);
 }
@@ -189,6 +181,7 @@ async function onChangeHNMode()
 {
     if (!W.editingMediator.attributes.editingHouseNumbers) {
         if(document.getElementById("WME-Quick-HN")) {
+            hnlayerobserver.disconnect();
             $('#WME-Quick-HN').remove();
             $('.wmequickhn-tab').remove();
             await new Promise(r => setTimeout(r,100));
@@ -225,6 +218,7 @@ async function onChangeHNMode()
                     '<b>Quick House Numbers</b> v' + GM_info.script.version +
                     '</br>' +
                     '<div title="House number"><b>House number </b><input type="number" id="_housenumber" style="width: 60px;"/></div>' +
+                   /* '<div><input type="checkbox" name="quickHNAutoSetHNCheckBox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="quickHNAutoSetHNCheckBox"><label for="quickHNAutoSetHNCheckBox">Auto Set next HN on typed/moved HN</label></div>' + */
                     '<div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>' +
                     '<div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>' +
                     '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>' +
@@ -235,6 +229,15 @@ async function onChangeHNMode()
                 quickTab.appendChild(btnSection);
                 quickTab.setAttribute("is-active","false");
                 localDataManager();
+
+                /* $('#quickHNAutoSetHNCheckBox').change(function onAutosetCheckChanged() {
+                    autoSetHN = this.checked;
+                    if (autoSetHN)
+                        hnWatch.observe($('div.house-numbers-layer')[0], { childList: true, subtree: true });
+                    else
+                        hnWatch.disconnect();
+                    wme_saveQuickHNOptions();
+                }); */
 
                 var tabChange = new MutationObserver(function(mutations) {
                     mutations.forEach(function(mutation) {
@@ -269,13 +272,38 @@ async function onChangeHNMode()
             btnSection.id='';
         }
 
+        var hnlayer = getElementsByClassName("house-numbers-layer");
+        hnlayerobserver.observe(hnlayer[0], { childList: true });
+
         var hn = document.getElementById('_housenumber');
         if (hn) {
             document.getElementById('_housenumber').value = counter + 1;
             document.getElementById('_housenumber').onchange = function(){
                 counter = document.getElementById('_housenumber').value - 1;
             };
-        }
+
+            //Watch HN layers to capture gaps
+            /*
+            hnWatch = new MutationObserver(mutations => {
+                mutations.forEach(mutation => {
+                    tlog('Mutation');
+                    console.log('M ',mutation);
+                    mutation.addedNodes.forEach(n => {
+                        if (n.classList?.contains('valid-true')) {
+                            counter = n.childNodes[1].childNodes[1].value;
+                            tlog('autoset next: ' + (Number(counter) + 1));
+                            if (document.getElementById('_housenumber') !== null ) {
+                                document.getElementById('_housenumber').value = +counter + 1;
+                            }
+                        }
+                    });
+                });
+            });
+
+            if (autoSetHN)
+                hnWatch.observe($('div.house-numbers-layer')[0], { childList: true, subtree: true });
+            */
+       }
     }
 }
 
@@ -314,24 +342,17 @@ function addHN10() { interval = 10; setFocus(); }
 function addHNcustom()
 {
     var temp = document.getElementById('_custominterval');
-    // log("add cust el: " + temp.parentElement.innerText);
+    //dlog("add cust el: " + temp.parentElement.innerText);
     interval = document.getElementById('_custominterval').value;
-    // log("add cust " + interval);
+    dlog("add cust " + interval);
     setFocus();
 }
 
 async function setFocus()
 {
+    tlog('setFocus');
+    fillnext = true;
     $('#toolbar .add-house-number').click();
-    $('#toolbar .add-house-number').click();
-    var hn = getElementsByClassName("number-preview");
-    /*for (var i=0; i<hn.length; i++)
-    {
-            hn[i].onfocus = function() { sethn(); };
-    }*/
-    await new Promise(r => setTimeout(r,100));
-    var hnlayer = getElementsByClassName("house-numbers-layer");
-    hnlayerobserver.observe(hnlayer[0], { childList: true });
 }
 
 // this may be a hack but works for now.  https://stackoverflow.com/questions/30683628/react-js-setting-value-of-input
@@ -350,17 +371,18 @@ function setNativeValue(element, value) {
 }
 
 async function sethn() {
+    tlog('sethn');
     var hn = $('div.olLayerDiv.house-numbers-layer div.house-number div.content.active:not(".new") input.number');
-    if (hn[0].placeholder == I18n.translations[I18n.locale].edit.segment.house_numbers.no_number && hn.val() === "")
+    if (fillnext && hn[0].placeholder == I18n.translations[I18n.locale].edit.segment.house_numbers.no_number && hn.val() === "")
     {
-        // log("sethn ctr " + counter + " ival " + interval);
+        dlog("sethn ctr " + counter + " ival " + interval);
         counter = +counter + +interval;
         if (document.getElementById('_housenumber') !== null )
             document.getElementById('_housenumber').value = counter + 1;
         setNativeValue(hn[0], counter);
-        await new Promise(r => setTimeout(r,10));
+        await new Promise(r => setTimeout(r,80));
         $("div#WazeMap").focus();
-        hnlayerobserver.disconnect();
+        fillnext = false;
     }
 }
 
