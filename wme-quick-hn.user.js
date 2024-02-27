@@ -1,19 +1,23 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2023.11.28.01
+// @version      2023.12.25.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
 // @exclude      https://www.waze.com/*user/*editor/*
 // @namespace    https://greasyfork.org/users/166713
 // @homepage     https://www.waze.com/forum/viewtopic.php?t=371460
+// @require      https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @grant        none
+// @downloadURL https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.user.js
+// @updateURL https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.meta.js
 // ==/UserScript==
 
 /* global W */
 /* global I18n */
 /* global $ */
+/* global WazeWrap */
 
 (function() {
     var counter = 0;
@@ -22,8 +26,10 @@
     var hnlayerobserver = null;
     var hnWatch = null;
     var autoSetHN = false;
-    var debug = false;
+    var zoomKeys = false;
+    var debug = true;
     var fillnext = false;
+    var initCount = 0;
 
 function setupPolicy() {
     if (typeof trustedTypes !== "undefined") {
@@ -41,11 +47,27 @@ function createSafeHtml(text) {
 function quickHN_bootstrap()
 {
     if (typeof W === 'object' && W.userscripts?.state.isReady) {
-        initialiseQuickHN();
+        onWmeReady();
     } else {
-        document.addEventListener("wme-ready", initialiseQuickHN, {
+        document.addEventListener("wme-ready", onWmeReady, {
             once: true,
         });
+    }
+}
+
+function onWmeReady()
+{
+    initCount++;
+    if (WazeWrap && WazeWrap.Ready)
+        initialiseQuickHN();
+    else {
+        if (initCount == 1) {
+            log('Waiting for WazeWrap...');
+        } else if (initCount == 100) {
+            console.error('WME Quick HN:', 'WazeWrap loading failed. Giving up.');
+            return;
+        }
+        setTimeout(onWmeReady, 300);
     }
 }
 
@@ -63,17 +85,17 @@ function log(message) {
     console.log('QuickHN: ' + message);
 }
 
-function dlog(message) {
-    if (debug) { console.log('QuickHN# ' + message); }
+function dlog(message, data = '') {
+    if (debug) { console.log('QuickHN# ' + message, data); }
 }
-function tlog(message) {
+function tlog(message, data = '') {
     const t = new Date;
     const h = t.getHours();
     const m = t.getMinutes();
     const s = t.getSeconds();
     const hms = h + ":" + m + ":" + s;
     const ms = ('00' + t.getMilliseconds()).slice(-3);
-    if (debug) { console.log('QHN:' + hms +'.'+ ms + ': ' + message); }
+    if (debug) { console.log('QHN:' + hms +'.'+ ms + ': ' + message, data); }
 }
 
 function initialiseQuickHN()
@@ -123,8 +145,8 @@ function initialiseQuickHN()
     I18n.translations[I18n.currentLocale()].keyboard_shortcuts.groups[group].description = "Quick HN";
     I18n.translations[I18n.currentLocale()].keyboard_shortcuts.groups[group].members = [];
 
-    createShortcut("WME_QHN_newHN01", "New HN (+1)", addHN1, "t");
-    createShortcut("WME_QHN_newHN02", "New HN (+2)", addHN2, "r");
+    createShortcut("WME_QHN_newHN01", "New HN (+1)", addHN1t, "t");
+    createShortcut("WME_QHN_newHN02", "New HN (+2)", addHN2r, "r");
     createShortcut("WME_QHN_newHNcust", "New HN (+CUSTOM_VALUE)", addHNcustom, "e");
     createShortcut("WME_QHN_newHN1", "New HN (+1)", addHN1, "1");
     createShortcut("WME_QHN_newHN2", "New HN (+2)", addHN2, "2");
@@ -136,6 +158,7 @@ function initialiseQuickHN()
     createShortcut("WME_QHN_newHN8", "New HN (+8)", addHN8, "8");
     createShortcut("WME_QHN_newHN9", "New HN (+9)", addHN9, "9");
     createShortcut("WME_QHN_newHN10","New HN (+10)", addHN10, "0");
+    localDataManager();
     log("initialize complete");
 }
 
@@ -150,6 +173,7 @@ function wme_saveQuickHNOptions()
 
         options[1] = document.getElementById('_custominterval').value;
         options[2] = autoSetHN;
+        options[3] = zoomKeys;
 
         localStorage.WMEquickHN = JSON.stringify(options);
     }
@@ -158,22 +182,24 @@ function wme_saveQuickHNOptions()
 function localDataManager()
 {
     // restore saved settings
-    if (localStorage.WMEquickHN)
-    {
+    var cust = 4;
+    if (localStorage.WMEquickHN) {
         var options = JSON.parse(localStorage.WMEquickHN);
-        if(options[1] !== undefined)
-            document.getElementById('_custominterval').value = options[1];
-        else
-            document.getElementById('_custominterval').value = 4;
-        if(options[2] !== undefined)
+        if (options[1] !== undefined)
+            cust = options[1];
+        if (options[2] !== undefined)
             autoSetHN = options[2];
+        if (options[3] !== undefined)
+            zoomKeys = options[3];
     }
-    else
-    {
-        document.getElementById('_custominterval').value = 4;
+    const cele = document.getElementById('_custominterval');
+    if (cele) {
+        cele.value = cust;
+        cele.onchange = wme_saveQuickHNOptions;
     }
-    // $('#quickHNAutoSetHNCheckBox').prop('checked', autoSetHN);
-    document.getElementById('_custominterval').onchange = wme_saveQuickHNOptions;
+
+    $('#quickHNAutoSetHNCheckBox').prop('checked', autoSetHN);
+    $('#quickHNzoomKeysCheckBox').prop('checked', zoomKeys);
     window.addEventListener("beforeunload", wme_saveQuickHNOptions, false);
 }
 
@@ -186,6 +212,7 @@ async function onChangeHNMode()
             $('.wmequickhn-tab').remove();
             await new Promise(r => setTimeout(r,100));
             activateEditTab(0);
+            WazeWrap.Events.unregister("afteraction",null, hnActionCheck);
         }
     }
     if(!document.getElementById("WME-Quick-HN") && W.editingMediator.attributes.editingHouseNumbers)
@@ -218,7 +245,8 @@ async function onChangeHNMode()
                     '<b>Quick House Numbers</b> v' + GM_info.script.version +
                     '</br>' +
                     '<div title="House number"><b>House number </b><input type="number" id="_housenumber" style="width: 60px;"/></div>' +
-                   /* '<div><input type="checkbox" name="quickHNAutoSetHNCheckBox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="quickHNAutoSetHNCheckBox"><label for="quickHNAutoSetHNCheckBox">Auto Set next HN on typed/moved HN</label></div>' + */
+                    '<div><input type="checkbox" name="quickHNAutoSetHNCheckBox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="quickHNAutoSetHNCheckBox"><label for="quickHNAutoSetHNCheckBox">Auto set next HN on typed/moved HN</label></div>' +
+                    '<div><input type="checkbox" name="quickHNzoomKeysCheckBox" title="3-9 => Z13-19; 0-2 => Z20-22" id="quickHNzoomKeysCheckBox"><label for="quickHNzoomKeysCheckBox">Zoom Keys when not in HN mode</label></div>' +
                     '<div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>' +
                     '<div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>' +
                     '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>' +
@@ -230,14 +258,19 @@ async function onChangeHNMode()
                 quickTab.setAttribute("is-active","false");
                 localDataManager();
 
-                /* $('#quickHNAutoSetHNCheckBox').change(function onAutosetCheckChanged() {
+                $('#quickHNAutoSetHNCheckBox').change(function onAutosetCheckChanged() {
                     autoSetHN = this.checked;
                     if (autoSetHN)
-                        hnWatch.observe($('div.house-numbers-layer')[0], { childList: true, subtree: true });
+                        WazeWrap.Events.register("afteraction",null, hnActionCheck);
                     else
-                        hnWatch.disconnect();
+                        WazeWrap.Events.unregister("afteraction",null, hnActionCheck);
                     wme_saveQuickHNOptions();
-                }); */
+                });
+
+                $('#quickHNzoomKeysCheckBox').change(function onZoomKeysCheckChanged() {
+                    zoomKeys = this.checked;
+                    wme_saveQuickHNOptions();
+                });
 
                 var tabChange = new MutationObserver(function(mutations) {
                     mutations.forEach(function(mutation) {
@@ -282,28 +315,27 @@ async function onChangeHNMode()
                 counter = document.getElementById('_housenumber').value - 1;
             };
 
-            //Watch HN layers to capture gaps
-            /*
-            hnWatch = new MutationObserver(mutations => {
-                mutations.forEach(mutation => {
-                    tlog('Mutation');
-                    console.log('M ',mutation);
-                    mutation.addedNodes.forEach(n => {
-                        if (n.classList?.contains('valid-true')) {
-                            counter = n.childNodes[1].childNodes[1].value;
-                            tlog('autoset next: ' + (Number(counter) + 1));
-                            if (document.getElementById('_housenumber') !== null ) {
-                                document.getElementById('_housenumber').value = +counter + 1;
-                            }
-                        }
-                    });
-                });
-            });
-
+            //If user has Auto Set Next HN turned on, register an event to watch changes
             if (autoSetHN)
-                hnWatch.observe($('div.house-numbers-layer')[0], { childList: true, subtree: true });
-            */
+                WazeWrap.Events.register("afteraction",null, hnActionCheck);
        }
+    }
+}
+
+//Watches changes for new/moved HNs and updates the counter and house number text box
+function hnActionCheck() {
+    try {
+        const lastAction = W.model.actionManager.getActions()[W.model.actionManager.getActionsNum()-1];
+        const actionHN = +lastAction.houseNumber.getAttribute('number');
+        if (counter != actionHN) {
+            counter = actionHN;
+            tlog('action: ' + actionHN, lastAction.houseNumber);
+            if (document.getElementById('_housenumber') !== null )
+                document.getElementById('_housenumber').value = counter + 1;
+        }
+    }
+    catch {
+        return;
     }
 }
 
@@ -328,16 +360,31 @@ function getElementsByClassName(classname, node) {
     return a;
 }
 
-function addHN1() { interval = 1; setFocus(); }
-function addHN2() { interval = 2; setFocus(); }
-function addHN3() { interval = 3; setFocus(); }
-function addHN4() { interval = 4; setFocus(); }
-function addHN5() { interval = 5; setFocus(); }
-function addHN6() { interval = 6; setFocus(); }
-function addHN7() { interval = 7; setFocus(); }
-function addHN8() { interval = 8; setFocus(); }
-function addHN9() { interval = 9; setFocus(); }
-function addHN10() { interval = 10; setFocus(); }
+function addHN1t() { interval = 1; setFocus(); }
+function addHN2r() { interval = 2; setFocus(); }
+function addHN1() { addOrZoom(1, 21); }
+function addHN2() { addOrZoom(2, 22); }
+function addHN3() { addOrZoom(3, 13); }
+function addHN4() { addOrZoom(4, 14); }
+function addHN5() { addOrZoom(5, 15); }
+function addHN6() { addOrZoom(6, 16); }
+function addHN7() { addOrZoom(7, 17); }
+function addHN8() { addOrZoom(8, 18); }
+function addHN9() { addOrZoom(9, 19); }
+function addHN10() { addOrZoom(10, 20); }
+
+function addOrZoom( ival, zoom )
+{
+    if (!W.editingMediator.attributes.editingHouseNumbers) {
+        if (zoomKeys) {
+            W.map.olMap.zoomTo(zoom);
+        }
+    }
+    else {
+        interval = ival;
+        setFocus();
+    }
+}
 
 function addHNcustom()
 {
