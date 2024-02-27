@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2023.12.25.01
+// @version      2024.02.27.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -27,7 +27,7 @@
     var hnWatch = null;
     var autoSetHN = false;
     var zoomKeys = false;
-    var debug = true;
+    var debug = false;
     var fillnext = false;
     var initCount = 0;
 
@@ -101,8 +101,7 @@ function tlog(message, data = '') {
 function initialiseQuickHN()
 {
     var ep = document.getElementById('edit-panel');
-    var lb = document.getElementById('map-lightbox');
-    if ( !ep || !lb) {
+    if (!ep) {
         setTimeout(initialiseQuickHN, 200);
         return;
     }
@@ -110,16 +109,6 @@ function initialiseQuickHN()
     setupPolicy();
     W.editingMediator.on({ 'change:editingHouseNumbers': onChangeHNMode });
 
-    var hnWindowShow = new MutationObserver(function(mutations)
-    {
-        mutations.forEach(function(mutation)
-        {
-            if (mutation.type == 'childList') {
-                $('.sidebar-layout > .overlay').remove();
-            }
-        });
-    });
-    hnWindowShow.observe(lb, { childList: true, subtree: true } );
     hnlayerobserver = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
             // Mutation is a NodeList and doesn't support forEach like an array
@@ -205,7 +194,13 @@ function localDataManager()
 
 async function onChangeHNMode()
 {
+    tlog('onChangeHNMode: ' + W.editingMediator.attributes.editingHouseNumbers);
+    var $x = $('.sidebar-layout > .overlay');
     if (!W.editingMediator.attributes.editingHouseNumbers) {
+        if ($x.length > 0) {
+            tlog('unhide overlay');
+            $x.show();
+        }
         if(document.getElementById("WME-Quick-HN")) {
             hnlayerobserver.disconnect();
             $('#WME-Quick-HN').remove();
@@ -226,6 +221,11 @@ async function onChangeHNMode()
         if (!navTabs) {
             setTimeout(onChangeHNMode, 200);
             return;
+        }
+
+        if ($x.length > 0) {
+            tlog('hide overlay');
+            $x.hide();
         }
 
         var btnSection = document.createElement('div');
