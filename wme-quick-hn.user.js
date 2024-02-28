@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2024.02.27.01
+// @version      2024.02.28.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -246,7 +246,7 @@ async function onChangeHNMode()
                     '</br>' +
                     '<div title="House number"><b>House number </b><input type="number" id="_housenumber" style="width: 60px;"/></div>' +
                     '<div><input type="checkbox" name="quickHNAutoSetHNCheckBox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="quickHNAutoSetHNCheckBox"><label for="quickHNAutoSetHNCheckBox">Auto set next HN on typed/moved HN</label></div>' +
-                    '<div><input type="checkbox" name="quickHNzoomKeysCheckBox" title="3-9 => Z13-19; 0-2 => Z20-22" id="quickHNzoomKeysCheckBox"><label for="quickHNzoomKeysCheckBox">Zoom Keys when not in HN mode</label></div>' +
+                    '<div><input type="checkbox" name="quickHNzoomKeysCheckBox" title="1-9 => Z11-19; 0 => Z20" id="quickHNzoomKeysCheckBox"><label for="quickHNzoomKeysCheckBox">Zoom Keys when not in HN mode</label></div>' +
                     '<div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>' +
                     '<div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>' +
                     '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>' +
@@ -362,8 +362,8 @@ function getElementsByClassName(classname, node) {
 
 function addHN1t() { interval = 1; setFocus(); }
 function addHN2r() { interval = 2; setFocus(); }
-function addHN1() { addOrZoom(1, 21); }
-function addHN2() { addOrZoom(2, 22); }
+function addHN1() { addOrZoom(1, 11); }
+function addHN2() { addOrZoom(2, 12); }
 function addHN3() { addOrZoom(3, 13); }
 function addHN4() { addOrZoom(4, 14); }
 function addHN5() { addOrZoom(5, 15); }
