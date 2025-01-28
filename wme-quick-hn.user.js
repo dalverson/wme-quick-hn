@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2024.02.28.01
+// @version      2025.01.28.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -20,6 +20,8 @@
 /* global WazeWrap */
 
 (function() {
+    const _script_display_name = 'Quick HN';
+    const _script_unique_id = 'wmeqhn';
     var counter = 0;
     var interval = 1;
     var policySafeHTML = null;
@@ -30,6 +32,13 @@
     var debug = false;
     var fillnext = false;
     var initCount = 0;
+
+    var wmeSDK;
+
+    window.SDK_INITIALIZED.then(() => {
+        wmeSDK = getWmeSdk({ scriptId: _script_unique_id, scriptName: _script_display_name});
+        wmeSDK.Events.once({ eventName: "wme-ready" }).then(onWmeReady);
+    });
 
 function setupPolicy() {
     if (typeof trustedTypes !== "undefined") {
@@ -44,7 +53,8 @@ function createSafeHtml(text) {
     }
 }
 
-function quickHN_bootstrap()
+//Moving to SDK
+/*function quickHN_bootstrap()
 {
     if (typeof W === 'object' && W.userscripts?.state.isReady) {
         onWmeReady();
@@ -53,7 +63,7 @@ function quickHN_bootstrap()
             once: true,
         });
     }
-}
+}*/
 
 function onWmeReady()
 {
@@ -64,7 +74,7 @@ function onWmeReady()
         if (initCount == 1) {
             log('Waiting for WazeWrap...');
         } else if (initCount == 100) {
-            console.error('WME Quick HN:', 'WazeWrap loading failed. Giving up.');
+            console.error('Quick HN:', 'WazeWrap loading failed. Giving up.');
             return;
         }
         setTimeout(onWmeReady, 300);
@@ -72,11 +82,19 @@ function onWmeReady()
 }
 
 function createShortcut(id, desc, func, kcode)
-{
-    I18n.translations[I18n.locale].keyboard_shortcuts.groups.wmeqhn.members[id] = desc;
+{/* SDK shortcuts for when that's fixed
+    I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups.wmeqhn.members[id] = desc;
+    const shortcut = {
+        callback: () => func,
+        description: desc,
+        shortcutId: id,
+        shortcutKeys: kcode,
+    };
+    wmeSDK.Shortcuts.createShortcut(shortcut);*/
+
     var short = {};
     short[kcode] = id;
-    W.accelerators.addAction(id, {group: 'wmeqhn'});
+    W.accelerators.addAction(id, {group: _script_unique_id});
     W.accelerators.events.register(id, null, func);
     W.accelerators._registerShortcuts(short);
 }
@@ -100,39 +118,14 @@ function tlog(message, data = '') {
 
 function initialiseQuickHN()
 {
-    var ep = document.getElementById('edit-panel');
-    if (!ep) {
-        setTimeout(initialiseQuickHN, 200);
-        return;
-    }
-
     setupPolicy();
-    W.editingMediator.on({ 'change:editingHouseNumbers': onChangeHNMode });
 
-    hnlayerobserver = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            // Mutation is a NodeList and doesn't support forEach like an array
-            for (var i = 0; i < mutation.addedNodes.length; i++) {
-                var addedNode = mutation.addedNodes[i];
-
-                // Only fire up if it's a node
-                if (addedNode.nodeType === Node.ELEMENT_NODE && addedNode.classList.contains('is-active')) {
-                    var x = addedNode.querySelector('input');
-                    if (x !== undefined) {
-                        x.onfocus = function() { sethn(); };
-                    }
-                }
-            }
-
-        });
-    });
-
-    let group = "wmeqhn";
+    let group = _script_unique_id;
     W.accelerators.Groups[group] = [];
     W.accelerators.Groups[group].members = [];
-    I18n.translations[I18n.currentLocale()].keyboard_shortcuts.groups[group] = [];
-    I18n.translations[I18n.currentLocale()].keyboard_shortcuts.groups[group].description = "Quick HN";
-    I18n.translations[I18n.currentLocale()].keyboard_shortcuts.groups[group].members = [];
+    I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups[group] = [];
+    I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups[group].description = _script_display_name;
+    I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups[group].members = [];
 
     createShortcut("WME_QHN_newHN01", "New HN (+1)", addHN1t, "t");
     createShortcut("WME_QHN_newHN02", "New HN (+2)", addHN2r, "r");
@@ -148,6 +141,77 @@ function initialiseQuickHN()
     createShortcut("WME_QHN_newHN9", "New HN (+9)", addHN9, "9");
     createShortcut("WME_QHN_newHN10","New HN (+10)", addHN10, "0");
     localDataManager();
+    wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
+        tabLabel.innerText = _script_display_name;
+        tabLabel.title = _script_display_name + ' Settings';
+        tabPane.innerHTML = createSafeHtml('<div>'+
+                    '<b>Quick House Numbers</b> v' + GM_info.script.version +
+                    '</br>' +
+                    '<div title="House number"><b>House number </b><input type="number" id="quick_hn_housenumber" style="width: 60px;"/></div>' +
+                    '<div><input type="checkbox" name="quickHNAutoSetHNCheckBox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="quickHNAutoSetHNCheckBox"><label for="quickHNAutoSetHNCheckBox">Auto set next HN on typed/moved HN</label></div>' +
+                    '<div><input type="checkbox" name="quickHNzoomKeysCheckBox" title="1-9 => Z11-19; 0 => Z20" id="quickHNzoomKeysCheckBox"><label for="quickHNzoomKeysCheckBox">Zoom Keys when no segment</label></div>' +
+                    '<div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>' +
+                    '<div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>' +
+                    '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="quick_hn_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>' +
+                    '<div>Press <b>1 - 9</b> to add <u>HN +x</u></div>' +
+                    '<div>Press <b>0</b> to add <u>HN +10</u></div>');
+
+        localDataManager();
+
+        $('#quickHNAutoSetHNCheckBox').change(function onAutosetCheckChanged() {
+            autoSetHN = this.checked;
+            if (autoSetHN)
+                WazeWrap.Events.register("afteraction",null, hnActionCheck);
+            else
+                WazeWrap.Events.unregister("afteraction",null, hnActionCheck);
+            wme_saveQuickHNOptions();
+        });
+
+        $('#quickHNzoomKeysCheckBox').change(function onZoomKeysCheckChanged() {
+            zoomKeys = this.checked;
+            wme_saveQuickHNOptions();
+        });
+        var hn = document.getElementById('quick_hn_housenumber');
+        if (hn) {
+            document.getElementById('quick_hn_housenumber').value = counter + 1;
+            document.getElementById('quick_hn_housenumber').onchange = function(){
+                counter = document.getElementById('quick_hn_housenumber').value - 1;
+            };
+
+            //If user has Auto Set Next HN turned on, register an event to watch changes
+            if (autoSetHN)
+                WazeWrap.Events.register("afteraction",null, hnActionCheck);
+        }
+    });
+
+    hnlayerobserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            // Mutation is a NodeList and doesn't support forEach like an array
+            for (var i = 0; i < mutation.addedNodes.length; i++) {
+                var addedNode = mutation.addedNodes[i];
+
+                // Only fire up if it's a node
+                if (addedNode.nodeType === Node.ELEMENT_NODE && addedNode.className == 'house-number is-active') {
+                    var x = addedNode.querySelector('input');
+                    if (x !== undefined) {
+                        x.onfocus = function() { sethn(); };
+                    }
+                }
+            }
+
+        });
+    });
+
+    wmeSDK.Events.on({eventName: "wme-selection-changed", eventHandler: () => {
+        if (wmeSDK.Editing.getSelection()?.objectType == "segment")
+        {
+            var maplayer = document.getElementById("WazeMap");
+            hnlayerobserver.observe(maplayer, { childList: true, subtree: true });
+        } else
+            hnlayerobserver.disconnect();
+        }
+    });
+
     log("initialize complete");
 }
 
@@ -160,7 +224,7 @@ function wme_saveQuickHNOptions()
         if (localStorage.WMEquickHN)
             options = JSON.parse(localStorage.WMEquickHN);
 
-        options[1] = document.getElementById('_custominterval').value;
+        options[1] = document.getElementById('quick_hn_custominterval').value;
         options[2] = autoSetHN;
         options[3] = zoomKeys;
 
@@ -181,7 +245,7 @@ function localDataManager()
         if (options[3] !== undefined)
             zoomKeys = options[3];
     }
-    const cele = document.getElementById('_custominterval');
+    const cele = document.getElementById('quick_hn_custominterval');
     if (cele) {
         cele.value = cust;
         cele.onchange = wme_saveQuickHNOptions;
@@ -192,136 +256,6 @@ function localDataManager()
     window.addEventListener("beforeunload", wme_saveQuickHNOptions, false);
 }
 
-async function onChangeHNMode()
-{
-    tlog('onChangeHNMode: ' + W.editingMediator.attributes.editingHouseNumbers);
-    var $x = $('.sidebar-layout > .overlay');
-    if (!W.editingMediator.attributes.editingHouseNumbers) {
-        if ($x.length > 0) {
-            tlog('unhide overlay');
-            $x.show();
-        }
-        if(document.getElementById("WME-Quick-HN")) {
-            hnlayerobserver.disconnect();
-            $('#WME-Quick-HN').remove();
-            $('.wmequickhn-tab').remove();
-            await new Promise(r => setTimeout(r,100));
-            activateEditTab(0);
-            WazeWrap.Events.unregister("afteraction",null, hnActionCheck);
-        }
-    }
-    if(!document.getElementById("WME-Quick-HN") && W.editingMediator.attributes.editingHouseNumbers)
-    {
-        await new Promise(r => setTimeout(r,20));
-        var userTabs = document.getElementById('edit-panel');
-        if (!(userTabs && getElementsByClassName('nav-tabs', userTabs)))
-            return;
-
-        var navTabs = document.getElementById('edit-panel').getElementsByTagName('wz-tabs')[0];
-        if (!navTabs) {
-            setTimeout(onChangeHNMode, 200);
-            return;
-        }
-
-        if ($x.length > 0) {
-            tlog('hide overlay');
-            $x.hide();
-        }
-
-        var btnSection = document.createElement('div');
-        btnSection.id = 'WME-Quick-HN';
-        if (typeof navTabs !== "undefined")
-        {
-            var tabContent = getElementsByClassName('segment-edit-section', userTabs)[0];
-
-            if (typeof tabContent !== "undefined")
-            {
-                var quickTab = document.createElement('wz-tab');
-                quickTab.className = 'wmequickhn-tab';
-                quickTab.label = 'Quick HN';
-                navTabs.appendChild(quickTab);
-
-                btnSection.innerHTML = createSafeHtml('<div>'+
-                    '<b>Quick House Numbers</b> v' + GM_info.script.version +
-                    '</br>' +
-                    '<div title="House number"><b>House number </b><input type="number" id="_housenumber" style="width: 60px;"/></div>' +
-                    '<div><input type="checkbox" name="quickHNAutoSetHNCheckBox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="quickHNAutoSetHNCheckBox"><label for="quickHNAutoSetHNCheckBox">Auto set next HN on typed/moved HN</label></div>' +
-                    '<div><input type="checkbox" name="quickHNzoomKeysCheckBox" title="1-9 => Z11-19; 0 => Z20" id="quickHNzoomKeysCheckBox"><label for="quickHNzoomKeysCheckBox">Zoom Keys when not in HN mode</label></div>' +
-                    '<div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>' +
-                    '<div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>' +
-                    '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>' +
-                    '<div>Press <b>1 - 9</b> to add <u>HN +x</u></div>' +
-                    '<div>Press <b>0</b> to add <u>HN +10</u></div>');
-
-                btnSection.className = "quickhn";
-                quickTab.appendChild(btnSection);
-                quickTab.setAttribute("is-active","false");
-                localDataManager();
-
-                $('#quickHNAutoSetHNCheckBox').change(function onAutosetCheckChanged() {
-                    autoSetHN = this.checked;
-                    if (autoSetHN)
-                        WazeWrap.Events.register("afteraction",null, hnActionCheck);
-                    else
-                        WazeWrap.Events.unregister("afteraction",null, hnActionCheck);
-                    wme_saveQuickHNOptions();
-                });
-
-                $('#quickHNzoomKeysCheckBox').change(function onZoomKeysCheckChanged() {
-                    zoomKeys = this.checked;
-                    wme_saveQuickHNOptions();
-                });
-
-                var tabChange = new MutationObserver(function(mutations) {
-                    mutations.forEach(function(mutation) {
-                        if (mutation.type === "attributes" && mutation.attributeName == "is-active") {
-                            if (mutation.target.isActive) {
-                                var tabs = document.getElementById('edit-panel').getElementsByTagName('wz-tabs')[0].getElementsByTagName('wz-tab');
-                                for (var i=0; i < tabs.length; i++) {
-                                    if (tabs[i] != quickTab) {
-                                        tabs[i].setAttribute("is-active","false");
-                                    }
-                                }
-                                mutation.target.style.display="block";
-                            }
-                            else {
-                                mutation.target.style.display="none";
-                            }
-                        }
-                    });
-                });
-                tabChange.observe(quickTab, { attributes: true });
-
-                await new Promise(r => setTimeout(r,50));
-                activateEditTab(-1);
-            }
-            else
-            {
-                btnSection.id='';
-            }
-        }
-        else
-        {
-            btnSection.id='';
-        }
-
-        var hnlayer = getElementsByClassName("house-numbers-layer");
-        hnlayerobserver.observe(hnlayer[0], { childList: true });
-
-        var hn = document.getElementById('_housenumber');
-        if (hn) {
-            document.getElementById('_housenumber').value = counter + 1;
-            document.getElementById('_housenumber').onchange = function(){
-                counter = document.getElementById('_housenumber').value - 1;
-            };
-
-            //If user has Auto Set Next HN turned on, register an event to watch changes
-            if (autoSetHN)
-                WazeWrap.Events.register("afteraction",null, hnActionCheck);
-       }
-    }
-}
-
 //Watches changes for new/moved HNs and updates the counter and house number text box
 function hnActionCheck() {
     try {
@@ -330,8 +264,8 @@ function hnActionCheck() {
         if (counter != actionHN) {
             counter = actionHN;
             tlog('action: ' + actionHN, lastAction.houseNumber);
-            if (document.getElementById('_housenumber') !== null )
-                document.getElementById('_housenumber').value = counter + 1;
+            if (document.getElementById('quick_hn_housenumber') !== null )
+                document.getElementById('quick_hn_housenumber').value = counter + 1;
         }
     }
     catch {
@@ -360,8 +294,8 @@ function getElementsByClassName(classname, node) {
     return a;
 }
 
-function addHN1t() { interval = 1; setFocus(); }
-function addHN2r() { interval = 2; setFocus(); }
+function addHN1t() { if (wmeSDK.Editing.getSelection()?.objectType == "segment"){ interval = 1; setFocus(); }}
+function addHN2r() { if (wmeSDK.Editing.getSelection()?.objectType == "segment"){ interval = 2; setFocus(); }}
 function addHN1() { addOrZoom(1, 11); }
 function addHN2() { addOrZoom(2, 12); }
 function addHN3() { addOrZoom(3, 13); }
@@ -375,31 +309,34 @@ function addHN10() { addOrZoom(10, 20); }
 
 function addOrZoom( ival, zoom )
 {
-    if (!W.editingMediator.attributes.editingHouseNumbers) {
+    if (wmeSDK.Editing.getSelection()?.objectType == "segment") {
+        interval = ival;
+        setFocus();
+    }
+    else {
         if (zoomKeys) {
             W.map.olMap.zoomTo(zoom);
         }
-    }
-    else {
-        interval = ival;
-        setFocus();
     }
 }
 
 function addHNcustom()
 {
-    var temp = document.getElementById('_custominterval');
-    //dlog("add cust el: " + temp.parentElement.innerText);
-    interval = document.getElementById('_custominterval').value;
-    dlog("add cust " + interval);
-    setFocus();
+    if (wmeSDK.Editing.getSelection()?.objectType == "segment")
+    {
+        var temp = document.getElementById('quick_hn_custominterval');
+        //dlog("add cust el: " + temp.parentElement.innerText);
+        interval = document.getElementById('quick_hn_custominterval').value;
+        dlog("add cust " + interval);
+        setFocus();
+    }
 }
 
 async function setFocus()
 {
     tlog('setFocus');
     fillnext = true;
-    $('#toolbar .add-house-number').click();
+    $('#segment-edit-general > div:nth-child(2) > wz-button').click();
 }
 
 // this may be a hack but works for now.  https://stackoverflow.com/questions/30683628/react-js-setting-value-of-input
@@ -420,18 +357,16 @@ function setNativeValue(element, value) {
 async function sethn() {
     tlog('sethn');
     var hn = $('div.olLayerDiv.house-numbers-layer div.house-number div.content.active:not(".new") input.number');
-    if (fillnext && hn[0].placeholder == I18n.translations[I18n.locale].edit.segment.house_numbers.no_number && hn.val() === "")
+    if (fillnext && hn[0].placeholder == I18n.translations[wmeSDK.Settings.getLocale().localeCode].edit.segment.house_numbers.no_number && hn.val() === "")
     {
         dlog("sethn ctr " + counter + " ival " + interval);
         counter = +counter + +interval;
-        if (document.getElementById('_housenumber') !== null )
-            document.getElementById('_housenumber').value = counter + 1;
+        if (document.getElementById('quick_hn_housenumber') !== null )
+            document.getElementById('quick_hn_housenumber').value = counter + 1;
         setNativeValue(hn[0], counter);
         await new Promise(r => setTimeout(r,80));
         $("div#WazeMap").focus();
         fillnext = false;
     }
 }
-
-quickHN_bootstrap();
 })();
