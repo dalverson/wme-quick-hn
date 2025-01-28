@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.01.28.01
+// @version      2025.01.28.02
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
 // @exclude      https://www.waze.com/*user/*editor/*
 // @namespace    https://greasyfork.org/users/166713
-// @homepage     https://www.waze.com/forum/viewtopic.php?t=371460
+// @homepage     https://www.waze.com/discuss/t/script-wme-quick-hn-daveacincy-fork/327021
 // @require      https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @grant        none
 // @downloadURL https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.user.js
@@ -83,7 +83,6 @@ function onWmeReady()
 
 function createShortcut(id, desc, func, kcode)
 {/* SDK shortcuts for when that's fixed
-    I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups.wmeqhn.members[id] = desc;
     const shortcut = {
         callback: () => func,
         description: desc,
@@ -92,6 +91,7 @@ function createShortcut(id, desc, func, kcode)
     };
     wmeSDK.Shortcuts.createShortcut(shortcut);*/
 
+    I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups.wmeqhn.members[id] = desc;
     var short = {};
     short[kcode] = id;
     W.accelerators.addAction(id, {group: _script_unique_id});
