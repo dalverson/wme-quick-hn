@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.01.28.02
+// @version      2025.01.29.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -10,8 +10,8 @@
 // @homepage     https://www.waze.com/discuss/t/script-wme-quick-hn-daveacincy-fork/327021
 // @require      https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @grant        none
-// @downloadURL https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.user.js
-// @updateURL https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.meta.js
+// @downloadURL  https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.user.js
+// @updateURL    https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.meta.js
 // ==/UserScript==
 
 /* global W */
@@ -22,7 +22,7 @@
 (function () {
     const _script_display_name = 'Quick HN';
     const _script_unique_id = 'wmeqhn';
-    var counter = 0;
+    var counter = '0';
     var interval = 1;
     var policySafeHTML = null;
     var hnlayerobserver = null;
@@ -144,7 +144,7 @@
             tabPane.innerHTML = createSafeHtml('<div>' +
                 '<b>Quick House Numbers</b> v' + GM_info.script.version +
                 '</br>' +
-                '<div title="House number"><b>House number </b><input type="number" id="quick_hn_housenumber" style="width: 60px;"/></div>' +
+                '<div title="House number" style="display: flex; align-items: center;"><b>House number </b> <input id="quick_hn_housenumber" style="width: 0; flex-grow: 1;"/></div>' +
                 '<div><input type="checkbox" name="quickHNAutoSetHNCheckBox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="quickHNAutoSetHNCheckBox"><label for="quickHNAutoSetHNCheckBox">Auto set next HN on typed/moved HN</label></div>' +
                 '<div><input type="checkbox" name="quickHNzoomKeysCheckBox" title="1-9 => Z11-19; 0 => Z20" id="quickHNzoomKeysCheckBox"><label for="quickHNzoomKeysCheckBox">Zoom Keys when no segment</label></div>' +
                 '<div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>' +
@@ -170,9 +170,9 @@
             });
             var hn = document.getElementById('quick_hn_housenumber');
             if (hn) {
-                document.getElementById('quick_hn_housenumber').value = counter + 1;
+                document.getElementById('quick_hn_housenumber').value = counter;
                 document.getElementById('quick_hn_housenumber').onchange = function () {
-                    counter = document.getElementById('quick_hn_housenumber').value - 1;
+                    counter = document.getElementById('quick_hn_housenumber').value;
                 };
 
                 //If user has Auto Set Next HN turned on, register an event to watch changes
@@ -254,12 +254,12 @@
     function hnActionCheck() {
         try {
             const lastAction = W.model.actionManager.getActions()[W.model.actionManager.getActionsNum() - 1];
-            const actionHN = +lastAction.houseNumber.getAttribute('number');
+            const actionHN = lastAction.houseNumber.getAttribute('number');
             if (counter != actionHN) {
                 counter = actionHN;
                 tlog('action: ' + actionHN, lastAction.houseNumber);
                 if (document.getElementById('quick_hn_housenumber') !== null)
-                    document.getElementById('quick_hn_housenumber').value = counter + 1;
+                    document.getElementById('quick_hn_housenumber').value = counter;
             }
         }
         catch {
@@ -346,16 +346,43 @@
 
     async function sethn() {
         tlog('sethn');
-        var hn = $('div.olLayerDiv.house-numbers-layer div.house-number div.content.active:not(".new") input.number');
-        if (fillnext && hn[0].placeholder == I18n.translations[wmeSDK.Settings.getLocale().localeCode].edit.segment.house_numbers.no_number && hn.val() === "") {
-            dlog("sethn ctr " + counter + " ival " + interval);
-            counter = +counter + +interval;
-            if (document.getElementById('quick_hn_housenumber') !== null)
-                document.getElementById('quick_hn_housenumber').value = counter + 1;
-            setNativeValue(hn[0], counter);
-            await new Promise(r => setTimeout(r, 80));
-            $("div#WazeMap").focus();
-            fillnext = false;
+        var hn = $('div.house-number.is-active input');
+        if (!fillnext || hn.val() !== "") return;
+
+        dlog("sethn ctr " + counter + " ival " + interval);
+        fillnext = false;
+
+        const nextParts = counter.match(/[0-9]+|[a-z]|[A-Z]|\S/g);
+
+        for (const [index, part] of nextParts.reverse().entries()) {
+            if (!Number.isNaN(Number(part))) {
+                nextParts[index] = (Number(part) + interval).toString().padStart(part.length, '0');
+                break;
+            }
+
+            if (/[a-z]/i.test(part)) {
+                let nextLetter = part.codePointAt(0) + (interval % 26);
+
+                interval = Math.floor(interval / 26);
+
+                if ((/[a-z]/.test(part) && nextLetter > 'z'.codePointAt(0)) ||
+                    (/[A-Z]/.test(part) && nextLetter > 'Z'.codePointAt(0))) {
+                    nextLetter -= 26;
+                    interval++;
+                }
+
+                nextParts[index] = String.fromCodePoint(nextLetter);
+
+                if (!interval) break;
+            }
         }
+
+        counter = nextParts.reverse().join('');
+
+        if (document.getElementById('quick_hn_housenumber') !== null)
+            document.getElementById('quick_hn_housenumber').value = counter;
+        setNativeValue(hn[0], counter);
+        await new Promise(r => setTimeout(r, 80));
+        hn.blur();
     }
 })();
