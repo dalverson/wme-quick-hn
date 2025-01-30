@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.01.29.01
+// @version      2025.01.30.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -26,7 +26,6 @@
     var interval = 1;
     var policySafeHTML = null;
     var hnlayerobserver = null;
-    var hnWatch = null;
     var autoSetHN = false;
     var zoomKeys = false;
     var debug = false;
@@ -52,18 +51,6 @@
             return text;
         }
     }
-
-    //Moving to SDK
-    /*function quickHN_bootstrap()
-    {
-        if (typeof W === 'object' && W.userscripts?.state.isReady) {
-            onWmeReady();
-        } else {
-            document.addEventListener("wme-ready", onWmeReady, {
-                once: true,
-            });
-        }
-    }*/
 
     function onWmeReady() {
         initCount++;
