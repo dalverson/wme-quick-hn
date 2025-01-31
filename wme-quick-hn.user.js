@@ -111,19 +111,11 @@
         I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups[group].description = _script_display_name;
         I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups[group].members = [];
 
-        createShortcut("WME_QHN_newHN01", "New HN (+1)", addHN1t, "t");
-        createShortcut("WME_QHN_newHN02", "New HN (+2)", addHN2r, "r");
-        createShortcut("WME_QHN_newHNcust", "New HN (+CUSTOM_VALUE)", addHNcustom, "e");
-        createShortcut("WME_QHN_newHN1", "New HN (+1)", addHN1, "1");
-        createShortcut("WME_QHN_newHN2", "New HN (+2)", addHN2, "2");
-        createShortcut("WME_QHN_newHN3", "New HN (+3)", addHN3, "3");
-        createShortcut("WME_QHN_newHN4", "New HN (+4)", addHN4, "4");
-        createShortcut("WME_QHN_newHN5", "New HN (+5)", addHN5, "5");
-        createShortcut("WME_QHN_newHN6", "New HN (+6)", addHN6, "6");
-        createShortcut("WME_QHN_newHN7", "New HN (+7)", addHN7, "7");
-        createShortcut("WME_QHN_newHN8", "New HN (+8)", addHN8, "8");
-        createShortcut("WME_QHN_newHN9", "New HN (+9)", addHN9, "9");
-        createShortcut("WME_QHN_newHN10", "New HN (+10)", addHN10, "0");
+        createShortcut("WME_QHN_newHN01", "New HN (+1)", () => addOrZoom(1), "t");
+        createShortcut("WME_QHN_newHN02", "New HN (+2)", () => addOrZoom(2), "r");
+        createShortcut("WME_QHN_newHNcust", "New HN (+CUSTOM_VALUE)", () => addOrZoom(document.getElementById('quick_hn_custominterval').value), "e");
+        for (let key = 1; key <= 10; key++)
+            createShortcut(`WME_QHN_newHN${key}`, `New HN (+${key})`, () => addOrZoom(key, key + 10), key % 10);
         localDataManager();
         wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
             tabLabel.innerText = _script_display_name;
@@ -275,39 +267,12 @@
         return a;
     }
 
-    function addHN1t() { if (wmeSDK.Editing.getSelection()?.objectType == "segment") { interval = 1; setFocus(); } }
-    function addHN2r() { if (wmeSDK.Editing.getSelection()?.objectType == "segment") { interval = 2; setFocus(); } }
-    function addHN1() { addOrZoom(1, 11); }
-    function addHN2() { addOrZoom(2, 12); }
-    function addHN3() { addOrZoom(3, 13); }
-    function addHN4() { addOrZoom(4, 14); }
-    function addHN5() { addOrZoom(5, 15); }
-    function addHN6() { addOrZoom(6, 16); }
-    function addHN7() { addOrZoom(7, 17); }
-    function addHN8() { addOrZoom(8, 18); }
-    function addHN9() { addOrZoom(9, 19); }
-    function addHN10() { addOrZoom(10, 20); }
-
-    function addOrZoom(ival, zoom) {
+    function addOrZoom(newInterval, zoom) {
         if (wmeSDK.Editing.getSelection()?.objectType == "segment") {
-            interval = ival;
+            interval = Number(newInterval);
             setFocus();
         }
-        else {
-            if (zoomKeys) {
-                W.map.olMap.zoomTo(zoom);
-            }
-        }
-    }
-
-    function addHNcustom() {
-        if (wmeSDK.Editing.getSelection()?.objectType == "segment") {
-            var temp = document.getElementById('quick_hn_custominterval');
-            //dlog("add cust el: " + temp.parentElement.innerText);
-            interval = document.getElementById('quick_hn_custominterval').value;
-            dlog("add cust " + interval);
-            setFocus();
-        }
+        else if (zoomKeys && zoom) W.map.olMap.zoomTo(zoom);
     }
 
     async function setFocus() {
