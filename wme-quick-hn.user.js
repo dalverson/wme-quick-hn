@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.01.30.01
+// @version      2025.02.01.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -244,27 +244,6 @@
         catch {
             return;
         }
-    }
-
-    function activateEditTab(ind) {
-        var ed = getElementsByClassName('segment-feature-editor');
-        var tabs = ed[0].querySelector('wz-tabs');
-        var tl = tabs.shadowRoot.querySelectorAll('.wz-tab-label');
-        if (tl && tl.length > 0) {
-            if (ind < 0) ind = tl.length + ind;
-            tl[ind].click();
-        }
-    }
-
-    function getElementsByClassName(classname, node) {
-        if (!node)
-            node = document.getElementsByTagName("body")[0];
-        var a = [];
-        var re = new RegExp('\\b' + classname + '\\b');
-        var els = node.getElementsByTagName("*");
-        for (var i = 0, j = els.length; i < j; i++)
-            if (re.test(els[i].className)) a.push(els[i]);
-        return a;
     }
 
     function addOrZoom(newInterval, zoom) {
