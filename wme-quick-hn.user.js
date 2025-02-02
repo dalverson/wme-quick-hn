@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.02.01.01
+// @version      2025.02.02.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -22,17 +22,16 @@
 (function () {
     const _script_display_name = 'Quick HN';
     const _script_unique_id = 'wmeqhn';
-    var counter = '0';
-    var interval = 1;
-    var policySafeHTML = null;
-    var hnlayerobserver = null;
-    var autoSetHN = false;
-    var zoomKeys = false;
-    var debug = false;
-    var fillnext = false;
-    var initCount = 0;
+    const debug = false;
+    let policySafeHTML;
+    let hnlayerobserver;
+    let counter = '0';
+    let interval = 1;
+    let autoSetHN = false;
+    let zoomKeys = false;
+    let fillnext = false;
 
-    var wmeSDK;
+    let wmeSDK;
 
     window.SDK_INITIALIZED.then(() => {
         wmeSDK = getWmeSdk({ scriptId: _script_unique_id, scriptName: _script_display_name });
@@ -45,21 +44,16 @@
         }
     }
     function createSafeHtml(text) {
-        if (policySafeHTML !== null) {
-            return policySafeHTML.createHTML(text);
-        } else {
-            return text;
-        }
+        return policySafeHTML ? policySafeHTML.createHTML(text) : text;
     }
 
+    let initCount = 0;
     function onWmeReady() {
         initCount++;
-        if (WazeWrap && WazeWrap.Ready)
-            initialiseQuickHN();
+        if (WazeWrap?.Ready) initialiseQuickHN();
         else {
-            if (initCount == 1) {
-                log('Waiting for WazeWrap...');
-            } else if (initCount == 100) {
+            if (initCount == 1) log('Waiting for WazeWrap...');
+            else if (initCount >= 100) {
                 console.error('Quick HN:', 'WazeWrap loading failed. Giving up.');
                 return;
             }
@@ -67,30 +61,26 @@
         }
     }
 
-    function createShortcut(id, desc, func, kcode) {/* SDK shortcuts for when that's fixed
-    const shortcut = {
-        callback: () => func,
-        description: desc,
-        shortcutId: id,
-        shortcutKeys: kcode,
-    };
-    wmeSDK.Shortcuts.createShortcut(shortcut);*/
+    function createShortcut(id, desc, func, kcode) {
+        /* SDK shortcuts for when that's fixed
+            const shortcut = {
+            callback: () => func,
+            description: desc,
+            shortcutId: id,
+            shortcutKeys: kcode,
+        };
+        wmeSDK.Shortcuts.createShortcut(shortcut);*/
 
         I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups.wmeqhn.members[id] = desc;
-        var short = {};
-        short[kcode] = id;
         W.accelerators.addAction(id, { group: _script_unique_id });
         W.accelerators.events.register(id, null, func);
-        W.accelerators._registerShortcuts(short);
+        W.accelerators._registerShortcuts({ [kcode]: id });
     }
 
     function log(message) {
         console.log('QuickHN: ' + message);
     }
 
-    function dlog(message, data = '') {
-        if (debug) { console.log('QuickHN# ' + message, data); }
-    }
     function tlog(message, data = '') {
         const t = new Date;
         const h = t.getHours();
@@ -147,28 +137,25 @@
                 zoomKeys = this.checked;
                 wme_saveQuickHNOptions();
             });
-            var hn = document.getElementById('quick_hn_housenumber');
+            const hn = document.getElementById('quick_hn_housenumber');
             if (hn) {
-                document.getElementById('quick_hn_housenumber').value = counter;
-                document.getElementById('quick_hn_housenumber').onchange = function () {
-                    counter = document.getElementById('quick_hn_housenumber').value;
-                };
+                hn.value = counter;
+                hn.onchange = () => counter = hn.value;
 
                 //If user has Auto Set Next HN turned on, register an event to watch changes
-                if (autoSetHN)
-                    WazeWrap.Events.register("afteraction", null, hnActionCheck);
+                if (autoSetHN) WazeWrap.Events.register("afteraction", null, hnActionCheck);
             }
         });
 
         hnlayerobserver = new MutationObserver(function (mutations) {
             mutations.forEach(function (mutation) {
                 // Mutation is a NodeList and doesn't support forEach like an array
-                for (var i = 0; i < mutation.addedNodes.length; i++) {
-                    var addedNode = mutation.addedNodes[i];
+                for (let i = 0; i < mutation.addedNodes.length; i++) {
+                    const addedNode = mutation.addedNodes[i];
 
                     // Only fire up if it's a node
                     if (addedNode.nodeType === Node.ELEMENT_NODE && addedNode.className == 'house-number is-active') {
-                        var x = addedNode.querySelector('input');
+                        const x = addedNode.querySelector('input');
                         if (x !== undefined) {
                             x.onfocus = function () { sethn(); };
                         }
@@ -181,7 +168,7 @@
         wmeSDK.Events.on({
             eventName: "wme-selection-changed", eventHandler: () => {
                 if (wmeSDK.Editing.getSelection()?.objectType == "segment") {
-                    var maplayer = document.getElementById("WazeMap");
+                    const maplayer = document.getElementById("WazeMap");
                     hnlayerobserver.observe(maplayer, { childList: true, subtree: true });
                 } else
                     hnlayerobserver.disconnect();
@@ -192,36 +179,17 @@
     }
 
     function wme_saveQuickHNOptions() {
-        if (localStorage) {
-            var options = [];
-            // preserve previous options which may get lost after logout
-            if (localStorage.WMEquickHN)
-                options = JSON.parse(localStorage.WMEquickHN);
-
-            options[1] = document.getElementById('quick_hn_custominterval').value;
-            options[2] = autoSetHN;
-            options[3] = zoomKeys;
-
-            localStorage.WMEquickHN = JSON.stringify(options);
-        }
+        localStorage['WMEquickHN'] = JSON.stringify({ autoSetHN, zoomKeys, custom: document.getElementById('quick_hn_custominterval').value });
     }
 
+    // restore saved settings
     function localDataManager() {
-        // restore saved settings
-        var cust = 4;
-        if (localStorage.WMEquickHN) {
-            var options = JSON.parse(localStorage.WMEquickHN);
-            if (options[1] !== undefined)
-                cust = options[1];
-            if (options[2] !== undefined)
-                autoSetHN = options[2];
-            if (options[3] !== undefined)
-                zoomKeys = options[3];
-        }
-        const cele = document.getElementById('quick_hn_custominterval');
-        if (cele) {
-            cele.value = cust;
-            cele.onchange = wme_saveQuickHNOptions;
+        ({ autoSetHN=autoSetHN, zoomKeys=zoomKeys, custom=4 } = JSON.parse(localStorage.WMEquickHN ?? '{}'));
+
+        const customInput = document.getElementById('quick_hn_custominterval');
+        if (customInput) {
+            customInput.value = custom;
+            customInput.onchange = wme_saveQuickHNOptions;
         }
 
         $('#quickHNAutoSetHNCheckBox').prop('checked', autoSetHN);
@@ -231,18 +199,13 @@
 
     //Watches changes for new/moved HNs and updates the counter and house number text box
     function hnActionCheck() {
-        try {
-            const lastAction = W.model.actionManager.getActions()[W.model.actionManager.getActionsNum() - 1];
-            const actionHN = lastAction.houseNumber.getAttribute('number');
-            if (counter != actionHN) {
-                counter = actionHN;
-                tlog('action: ' + actionHN, lastAction.houseNumber);
-                if (document.getElementById('quick_hn_housenumber') !== null)
-                    document.getElementById('quick_hn_housenumber').value = counter;
-            }
-        }
-        catch {
-            return;
+        const lastAction = W.model.actionManager.getActions().at(-1);
+        const actionHN = lastAction?.houseNumber?.getAttribute('number');
+        if (actionHN && counter !== actionHN) {
+            counter = actionHN;
+            tlog('action: ' + actionHN, lastAction.houseNumber);
+            if (document.getElementById('quick_hn_housenumber'))
+                document.getElementById('quick_hn_housenumber').value = counter;
         }
     }
 
@@ -277,10 +240,10 @@
 
     async function sethn() {
         tlog('sethn');
-        var hn = $('div.house-number.is-active input');
+        const hn = $('div.house-number.is-active input');
         if (!fillnext || hn.val() !== "") return;
 
-        dlog("sethn ctr " + counter + " ival " + interval);
+        tlog("sethn ctr " + counter + " ival " + interval);
         fillnext = false;
 
         const nextParts = counter.match(/[0-9]+|[a-z]|[A-Z]|\S/g);
