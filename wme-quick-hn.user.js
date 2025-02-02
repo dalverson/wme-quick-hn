@@ -165,7 +165,7 @@ function initialiseQuickHN()
                     '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="quick_hn_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>' +
                     '<div>Press <b>1 - 9</b> to add <u>HN +x</u></div>' +
                     '<div>Press <b>0</b> to add <u>HN +10</u></div>' +
-                    '<div>Press <b>SHIFT</b> and <b>1 - 9</b> to add <u>HN +1x</u> (<i>11,12,13...)</i></div>' +
+                    '<div>Press <b>SHIFT</b> and <b>1 - 9</b> to add <u>HN +1x</u> <i>(11,12,13...)</i></div>' +
                     '<div>Press <b>SHIFT</b> and <b>0</b> to add <u>HN +20</u></div>');
 
         localDataManager();
