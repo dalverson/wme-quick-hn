@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.01.28.02
+// @version      2025.02.02.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -140,6 +140,16 @@ function initialiseQuickHN()
     createShortcut("WME_QHN_newHN8", "New HN (+8)", addHN8, "8");
     createShortcut("WME_QHN_newHN9", "New HN (+9)", addHN9, "9");
     createShortcut("WME_QHN_newHN10","New HN (+10)", addHN10, "0");
+    createShortcut("WME_QHN_newHN11", "New HN (+11)", addHN11, "S+1");
+    createShortcut("WME_QHN_newHN12", "New HN (+12)", addHN12, "S+2");
+    createShortcut("WME_QHN_newHN13", "New HN (+13)", addHN13, "S+3");
+    createShortcut("WME_QHN_newHN14", "New HN (+14)", addHN14, "S+4");
+    createShortcut("WME_QHN_newHN15", "New HN (+15)", addHN15, "S+5");
+    createShortcut("WME_QHN_newHN16", "New HN (+16)", addHN16, "S+6");
+    createShortcut("WME_QHN_newHN17", "New HN (+17)", addHN17, "S+7");
+    createShortcut("WME_QHN_newHN18", "New HN (+18)", addHN18, "S+8");
+    createShortcut("WME_QHN_newHN19", "New HN (+19)", addHN19, "S+9");
+    createShortcut("WME_QHN_newHN20", "New HN (+20)", addHN20, "S+0");
     localDataManager();
     wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
         tabLabel.innerText = _script_display_name;
@@ -154,7 +164,9 @@ function initialiseQuickHN()
                     '<div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>' +
                     '<div>Press <b>E</b> to add <u>HN +</u><input type="number" id="quick_hn_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>' +
                     '<div>Press <b>1 - 9</b> to add <u>HN +x</u></div>' +
-                    '<div>Press <b>0</b> to add <u>HN +10</u></div>');
+                    '<div>Press <b>0</b> to add <u>HN +10</u></div>' +
+                    '<div>Press <b>SHIFT</b> and <b>1 - 9</b> to add <u>HN +1x</u> (<i>11,12,13...)</i></div>' +
+                    '<div>Press <b>SHIFT</b> and <b>0</b> to add <u>HN +20</u></div>');
 
         localDataManager();
 
@@ -306,6 +318,16 @@ function addHN7() { addOrZoom(7, 17); }
 function addHN8() { addOrZoom(8, 18); }
 function addHN9() { addOrZoom(9, 19); }
 function addHN10() { addOrZoom(10, 20); }
+function addHN11() { addOrZoom(11, 11); }
+function addHN12() { addOrZoom(12, 12); }
+function addHN13() { addOrZoom(13, 13); }
+function addHN14() { addOrZoom(14, 14); }
+function addHN15() { addOrZoom(15, 15); }
+function addHN16() { addOrZoom(16, 16); }
+function addHN17() { addOrZoom(17, 17); }
+function addHN18() { addOrZoom(18, 18); }
+function addHN19() { addOrZoom(19, 19); }
+function addHN20() { addOrZoom(20, 20); }
 
 function addOrZoom( ival, zoom )
 {
