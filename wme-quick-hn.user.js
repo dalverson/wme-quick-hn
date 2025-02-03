@@ -27,6 +27,7 @@
     let wazeMapObserver;
     let counter = '0';
     let interval = 1;
+    let modeMultiplier = 1;
     let autoSetHN = false;
     let zoomKeys = false;
     let fillnext = false;
@@ -111,9 +112,7 @@
                 <div style="display: flex; align-items: center;"><b>House number</b><input id="qhnHouseNumber" style="width: 0; flex-grow: 1;"/></div>
                 <div><input type="checkbox" name="qhnAutoSetHNCheckbox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="qhnAutoSetHNCheckbox"> <label for="qhnAutoSetHNCheckbox">Auto set next HN on typed/moved HN</label></div>
                 <div><input type="checkbox" name="qhnZoomKeysCheckbox" title="1-9 => Z11-19; 0 => Z20" id="qhnZoomKeysCheckbox"> <label for="qhnZoomKeysCheckbox">Zoom Keys when no segment</label></div>
-                <div style="display: flex; align-items: center;"><b>House number</b><input id="quick_hn_housenumber" style="width: 0; flex-grow: 1;"/></div>
-                <div><input type="checkbox" name="quickHNAutoSetHNCheckBox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="quickHNAutoSetHNCheckBox"> <label for="quickHNAutoSetHNCheckBox">Auto set next HN on typed/moved HN</label></div>
-                <div><input type="checkbox" name="quickHNzoomKeysCheckBox" title="1-9 => Z11-19; 0 => Z20" id="quickHNzoomKeysCheckBox"> <label for="quickHNzoomKeysCheckBox">Zoom Keys when no segment</label></div>
+                <div>Mode: <button name="qhnModeToggle" id="qhnModeToggle">Increment</button></div>
                 <div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>
                 <div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>
                 <div>Press <b>E</b> to add <u>HN +</u><input type="number" id="qhnCustomInterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>
@@ -131,6 +130,11 @@
             $('#qhnZoomKeysCheckbox').prop('checked', zoomKeys).on("change", (e) => {
                 zoomKeys = e.target.checked;
                 saveQHNOptions();
+            });
+
+            $('#qhnModeToggle').on("click", () => {
+                modeMultiplier *= -1;
+                $('#qhnModeToggle').text(modeMultiplier > 0 ? 'Increment' : 'Decrement');
             });
 
             const houseNumberInput = document.getElementById('qhnHouseNumber');
@@ -223,18 +227,24 @@
 
         for (const [index, part] of nextParts.reverse().entries()) {
             if (!Number.isNaN(Number(part))) {
-                nextParts[index] = (Number(part) + interval).toString().padStart(part.length, '0');
+                nextParts[index] = Math.max(1, Number(part) + (interval * modeMultiplier)).toString().padStart(part.length, '0');
                 break;
             }
 
             if (/[a-z]/i.test(part)) {
-                let nextLetter = part.codePointAt(0) + (interval % 26);
+                let nextLetter = part.codePointAt(0) + ((interval % 26) * modeMultiplier);
 
                 interval = Math.floor(interval / 26);
 
                 if ((/[a-z]/.test(part) && nextLetter > 'z'.codePointAt(0)) ||
                     (/[A-Z]/.test(part) && nextLetter > 'Z'.codePointAt(0))) {
                     nextLetter -= 26;
+                    interval++;
+                }
+
+                if ((/[a-z]/.test(part) && nextLetter < 'a'.codePointAt(0)) ||
+                    (/[A-Z]/.test(part) && nextLetter < 'A'.codePointAt(0))) {
+                    nextLetter += 26;
                     interval++;
                 }
 
