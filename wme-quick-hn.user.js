@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.02.02.01
+// @version      2025.02.03.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -40,9 +40,9 @@
     let initCount = 0;
     function onWmeReady() {
         initCount++;
-        if (WazeWrap?.Ready) initialiseQuickHN();
+        if (WazeWrap?.Ready) initialiseQHN();
         else {
-            if (initCount == 1) console.log('QuickHN: Waiting for WazeWrap...');
+            if (initCount == 1) console.log('Quick HN: Waiting for WazeWrap...');
             else if (initCount >= 100) {
                 console.error('Quick HN:', 'WazeWrap loading failed. Giving up.');
                 return;
@@ -61,12 +61,8 @@
         if (debug) { console.log('QHN:' + hms + '.' + ms + ': ' + message, data); }
     }
 
-    function saveQuickHNOptions() {
-        localStorage[scriptId] = JSON.stringify({ autoSetHN, zoomKeys, custom: document.getElementById('quick_hn_custominterval').value });
-    }
-
-    function createSafeHtml(text) {
-        return policySafeHTML ? policySafeHTML.createHTML(text) : text;
+    function saveQHNOptions() {
+        localStorage[scriptId] = JSON.stringify({ autoSetHN, zoomKeys, custom: document.getElementById('qhnCustomInterval')?.value });
     }
 
     function getOrdinal(num) {
@@ -93,7 +89,7 @@
         W.accelerators._registerShortcuts({ [kcode]: id });
     }
 
-    function initialiseQuickHN() {
+    function initialiseQHN() {
         if (typeof trustedTypes !== "undefined") {
             policySafeHTML = trustedTypes.createPolicy("policySafeHTML", { createHTML: innerText => innerText });
         }
@@ -103,46 +99,41 @@
 
         createShortcut("WME_QHN_newHN01", "Insert next sequential house number", () => addOrZoom(1), "t");
         createShortcut("WME_QHN_newHN02", "Insert every 2nd house number", () => addOrZoom(2), "r");
-        createShortcut("WME_QHN_newHNcustom", "Insert house number with custom interval", () => addOrZoom(document.getElementById('quick_hn_custominterval').value), "e");
+        createShortcut("WME_QHN_newHNcustom", "Insert house number with custom interval", () => addOrZoom(document.getElementById('qhnCustomInterval')?.value), "e");
         for (let key = 1; key <= 10; key++)
             createShortcut(`WME_QHN_newHN${key}`, `Insert every ${getOrdinal(key)} house number or zoom to level ${key + 10}`, () => addOrZoom(key, key + 10), key % 10);
 
         wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
             tabLabel.innerText = scriptName;
             tabLabel.title = `${scriptName} Settings`;
-            tabPane.innerHTML = createSafeHtml(`<div>
+            tabPane.innerHTML = ((text) => policySafeHTML ? policySafeHTML.createHTML(text) : text)(`<div>
                 <div><b>Quick House Numbers</b> v${GM_info.script.version}</div>
+                <div style="display: flex; align-items: center;"><b>House number</b><input id="qhnHouseNumber" style="width: 0; flex-grow: 1;"/></div>
+                <div><input type="checkbox" name="qhnAutoSetHNCheckbox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="qhnAutoSetHNCheckbox"> <label for="qhnAutoSetHNCheckbox">Auto set next HN on typed/moved HN</label></div>
+                <div><input type="checkbox" name="qhnZoomKeysCheckbox" title="1-9 => Z11-19; 0 => Z20" id="qhnZoomKeysCheckbox"> <label for="qhnZoomKeysCheckbox">Zoom Keys when no segment</label></div>
                 <div style="display: flex; align-items: center;"><b>House number</b><input id="quick_hn_housenumber" style="width: 0; flex-grow: 1;"/></div>
                 <div><input type="checkbox" name="quickHNAutoSetHNCheckBox" title="When enabled, Auto set next HN updates the next HN field based on the last HN created or moved" id="quickHNAutoSetHNCheckBox"> <label for="quickHNAutoSetHNCheckBox">Auto set next HN on typed/moved HN</label></div>
                 <div><input type="checkbox" name="quickHNzoomKeysCheckBox" title="1-9 => Z11-19; 0 => Z20" id="quickHNzoomKeysCheckBox"> <label for="quickHNzoomKeysCheckBox">Zoom Keys when no segment</label></div>
                 <div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>
                 <div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>
-                <div>Press <b>E</b> to add <u>HN +</u><input type="number" id="quick_hn_custominterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>
+                <div>Press <b>E</b> to add <u>HN +</u><input type="number" id="qhnCustomInterval" style="width: 42px;margin-left: 6px;height: 22px;"></div>
                 <div>Press <b>1 - 9</b> to add <u>HN +x</u></div>
                 <div>Press <b>0</b> to add <u>HN +10</u></div>`);
 
             ({ autoSetHN=autoSetHN, zoomKeys=zoomKeys, custom=4 } = JSON.parse(localStorage[scriptId] ?? '{}'));
 
-            const customInput = document.getElementById('quick_hn_custominterval');
-            if (customInput) {
-                customInput.value = custom;
-                customInput.onchange = saveQuickHNOptions;
-            }
-
-            $('#quickHNAutoSetHNCheckBox').prop('checked', autoSetHN).on("change", (e) => {
+            $('#qhnAutoSetHNCheckbox').prop('checked', autoSetHN).on("change", (e) => {
                 autoSetHN = e.target.checked;
                 WazeWrap.Events[autoSetHN ? 'register' : 'unregister']("afteraction", null, hnActionCheck);
-                saveQuickHNOptions();
+                saveQHNOptions();
             });
 
-            $('#quickHNzoomKeysCheckBox').prop('checked', zoomKeys).on("change", (e) => {
+            $('#qhnZoomKeysCheckbox').prop('checked', zoomKeys).on("change", (e) => {
                 zoomKeys = e.target.checked;
-                saveQuickHNOptions();
+                saveQHNOptions();
             });
 
-            window.addEventListener("beforeunload", saveQuickHNOptions, false);
-
-            const houseNumberInput = document.getElementById('quick_hn_housenumber');
+            const houseNumberInput = document.getElementById('qhnHouseNumber');
             if (houseNumberInput) {
                 houseNumberInput.value = counter;
                 houseNumberInput.onchange = () => counter = houseNumberInput.value;
@@ -150,6 +141,14 @@
                 //If user has Auto Set Next HN turned on, register an event to watch changes
                 if (autoSetHN) WazeWrap.Events.register("afteraction", null, hnActionCheck);
             }
+
+            const customInput = document.getElementById('qhnCustomInterval');
+            if (customInput) {
+                customInput.value = custom;
+                customInput.onchange = saveQHNOptions;
+            }
+
+            window.addEventListener("beforeunload", saveQHNOptions, false);
         });
 
         wazeMapObserver = new MutationObserver((mutations) => {
@@ -172,7 +171,7 @@
             }
         });
 
-        console.log("QuickHN: initialize complete");
+        console.log("Quick HN: initialize complete");
     }
 
     // Watches changes for new/moved HNs and updates the counter and house number text box
@@ -182,12 +181,13 @@
         if (actionHN && counter !== actionHN) {
             counter = actionHN;
             tlog('action: ' + actionHN, lastAction.houseNumber);
-            if (document.getElementById('quick_hn_housenumber'))
-                document.getElementById('quick_hn_housenumber').value = counter;
+            document.getElementById('qhnHouseNumber').value = counter;
         }
     }
 
     function addOrZoom(newInterval, zoom) {
+        if (!newInterval) return;
+
         if (wmeSDK.Editing.getSelection()?.objectType == "segment") {
             interval = Number(newInterval);
 
@@ -246,8 +246,7 @@
 
         counter = nextParts.reverse().join('');
 
-        if (document.getElementById('quick_hn_housenumber'))
-            document.getElementById('quick_hn_housenumber').value = counter;
+        document.getElementById('qhnHouseNumber').value = counter;
 
         setNativeValue(hnInput, counter);
         await new Promise(r => setTimeout(r, 80));
