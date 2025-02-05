@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.02.04.01
+// @version      2025.02.05.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -30,10 +30,8 @@
     let lastHN;
     let interval = 1;
     let modeMultiplier = 1;
-    let autoSetHN = false;
-    let zoomKeys = false;
-    let custom = 4;
     let fillnext = false;
+    let { autoSetHN = false, zoomKeys = false, custom = 4 } = JSON.parse(localStorage[scriptId] ?? '{}');
 
     let wmeSDK;
     window.SDK_INITIALIZED.then(() => {
@@ -41,18 +39,15 @@
         wmeSDK.Events.once({ eventName: 'wme-ready' }).then(onWmeReady);
     });
 
-    let initCount = 0;
-    function onWmeReady() {
-        initCount++;
-        if (WazeWrap?.Ready) initialiseQHN();
-        else {
-            if (initCount == 1) console.log('Quick HN: Waiting for WazeWrap...');
-            else if (initCount >= 100) {
-                console.error('Quick HN: WazeWrap loading failed. Giving up.');
-                return;
-            }
-            setTimeout(onWmeReady, 300);
+    async function onWmeReady() {
+        for (let initCount = 1; initCount <= 100; initCount++) {
+            if (WazeWrap?.Ready) return initialiseQHN();
+            else if (initCount === 1) console.log('Quick HN: Waiting for WazeWrap...');
+
+            await new Promise(r => setTimeout(r, 300));
         }
+
+                console.error('Quick HN: WazeWrap loading failed. Giving up.');
     }
 
     function tlog(message, data = '') {
@@ -62,10 +57,9 @@
         const h = t.getHours();
         const m = t.getMinutes();
         const s = t.getSeconds();
-        const hms = `${h}:${m}:${s}`;
-        const ms = (`00${t.getMilliseconds()}`).slice(-3);
+        const ms = `${t.getMilliseconds()}`.padStart(3, '0');
 
-        console.log(`QHN: ${hms}.${ms}: ${message}`, data);
+        console.log(`QHN: ${h}:${m}:${s}.${ms}: ${message}`, data);
     }
 
     function saveQHNOptions() {
@@ -124,8 +118,6 @@
                 <div>Press <b>E</b> to add <u>HN +</u><input type='number' id='qhnCustomInput' min='1' value='${custom}' style='width: 42px; margin-left: 6px; height: 22px;'></div>
                 <div>Press <b>1 - 9</b> to add <u>HN +#</u></div>
                 <div>Press <b>0</b> to add <u>HN +10</u></div>`);
-
-            ({ autoSetHN=autoSetHN, zoomKeys=zoomKeys, custom=custom } = JSON.parse(localStorage[scriptId] ?? '{}'));
 
             $('#qhnAutoSetHNCheckbox').prop('checked', autoSetHN).on('change', (e) => {
                 autoSetHN = e.target.checked;
@@ -192,9 +184,10 @@
 
         if (wmeSDK.Editing.getSelection()?.objectType == 'segment') {
             interval = Number(newInterval);
+            fillnext = true;
 
             tlog('setFocus');
-            fillnext = true;
+
             $('wz-button').has('.w-icon-home').trigger('click');
             $('wz-navigation-item[selected="false"] i.w-icon-script').trigger('click');
             $('#user-tabs li a').has(`span:contains('${scriptName}')`).trigger('click');
@@ -259,7 +252,7 @@
         document.getElementById('qhnLastHN').innerText = lastHN;
 
         setNativeValue(hnInput, lastHN);
-        await new Promise(r => setTimeout(r, 80));
+        await new Promise(r => setTimeout(r, 100));
         hnInput.blur();
     }
 })();
