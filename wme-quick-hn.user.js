@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.02.05.01
+// @version      2025.02.06.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -47,7 +47,7 @@
             await new Promise(r => setTimeout(r, 300));
         }
 
-                console.error('Quick HN: WazeWrap loading failed. Giving up.');
+        console.error('Quick HN: WazeWrap loading failed. Giving up.');
     }
 
     function tlog(message, data = '') {
@@ -64,15 +64,7 @@
 
     function saveQHNOptions() {
         localStorage[scriptId] = JSON.stringify({ autoSetHN, zoomKeys, custom });
-    }
-
-    function getOrdinal(num) {
-        return `${num}${new Map([
-            ["one", "st"],
-            ["two", "nd"],
-            ["few", "rd"],
-            ["other", "th"],
-        ]).get(new Intl.PluralRules(wmeSDK.Settings.getLocale().localeCode, { type: 'ordinal' }).select(num))}`
+        updateTabPane();
     }
 
     function createShortcut(id, desc, func, kcode) {
@@ -88,6 +80,26 @@
         W.accelerators.addAction(id, { group: scriptId });
         W.accelerators.events.register(id, null, func);
         W.accelerators._registerShortcuts({ [kcode]: id });
+    }
+
+    function getOrdinal(num) {
+        return `${num}${new Map([
+            ["one", "st"],
+            ["two", "nd"],
+            ["few", "rd"],
+            ["other", "th"],
+        ]).get(new Intl.PluralRules(wmeSDK.Settings.getLocale().localeCode, { type: 'ordinal' }).select(num))}`
+    }
+
+    function updateTabPane() {
+        document.getElementById('qhnTabPane').innerHTML = lastHN ?
+            `<div>Last house number: <b>${lastHN}</b></div><br/>
+            <div>Press...
+            <br/><b>T</b> to add HN+1 <i>(1,2,3...)</i>
+            <br/><b>R</b> to add HN+2 <i>(1,3,5... or 2,4,6...)</i>
+            <br/><b>E</b> to add HN+${custom}
+            <br/><b>1-9</b> to ${zoomKeys ? `zoom to level 1#` : 'add HN +#'}</div>`
+            : "Manually set a house number to start using QHN";
     }
 
     function initialiseQHN() {
@@ -107,26 +119,30 @@
         wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
             tabLabel.innerText = scriptName;
             tabLabel.title = `${scriptName} Settings`;
-            tabPane.innerHTML = ((text) => policySafeHTML ? policySafeHTML.createHTML(text) : text)(`<div>
+            tabPane.innerHTML = ((text) => policySafeHTML ? policySafeHTML.createHTML(text) : text)(`
                 <div><b>Quick House Numbers</b> v${GM_info.script.version}</div><br/>
-                <div><input type='checkbox' name='qhnAutoSetHNCheckbox' title="When enabled, auto set next HN updates the last HN based on the last HN moved" id='qhnAutoSetHNCheckbox'> <label for='qhnAutoSetHNCheckbox'>Auto set next HN on moved HN</label></div>
-                <div><input type='checkbox' name='qhnZoomKeysCheckbox' title="1-9 => Z11-19; 0 => Z20" id='qhnZoomKeysCheckbox'> <label for='qhnZoomKeysCheckbox'>Zoom Keys when no segment</label></div><br/>
+                <div><input type='checkbox' id='qhnAutoSetHNCheckbox' name='qhnAutoSetHNCheckbox' title="When enabled, auto set next HN updates the last HN based on the last HN moved" ${autoSetHN ? 'checked' : ''}> <label for='qhnAutoSetHNCheckbox'>Auto set next HN on moved HN</label></div>
+                <div><input type='checkbox' id='qhnZoomKeysCheckbox' name='qhnZoomKeysCheckbox' title="1-9 => Z11-19; 0 => Z20" ${zoomKeys ? 'checked' : ''}> <label for='qhnZoomKeysCheckbox'>Zoom Keys when no segment</label></div>
+                <div>Custom interval: <input type='number' id='qhnCustomInput' min='1' value='${custom}' style='width: 50px;'></div><br/>
                 <div>Mode: <button name='qhnModeToggle' id='qhnModeToggle'>Increment &uarr;</button></div><br/>
-                <div><b>Last house number set:</b> <span id='qhnLastHN'>None</span></div><br/>
-                <div>Press <b>T</b> to add <u>HN +1</u> <i>(1,2,3...)</i></div>
-                <div>Press <b>R</b> to add <u>HN +2</u> <i>(1,3,5... or 2,4,6...)</i></div>
-                <div>Press <b>E</b> to add <u>HN +</u><input type='number' id='qhnCustomInput' min='1' value='${custom}' style='width: 42px; margin-left: 6px; height: 22px;'></div>
-                <div>Press <b>1 - 9</b> to add <u>HN +#</u></div>
-                <div>Press <b>0</b> to add <u>HN +10</u></div>`);
+                <div id="qhnTabPane"></div>`);
 
-            $('#qhnAutoSetHNCheckbox').prop('checked', autoSetHN).on('change', (e) => {
+            updateTabPane()
+
+            $('#qhnAutoSetHNCheckbox').on('change', (e) => {
                 autoSetHN = e.target.checked;
                 WazeWrap.Events[autoSetHN ? 'register' : 'unregister']('afteraction', null, hnActionCheck);
                 saveQHNOptions();
             });
 
-            $('#qhnZoomKeysCheckbox').prop('checked', zoomKeys).on('change', (e) => {
+            $('#qhnZoomKeysCheckbox').on('change', (e) => {
                 zoomKeys = e.target.checked;
+                saveQHNOptions();
+            });
+
+            $('#qhnCustomInput').on('change', (e) => {
+                custom = e.target.value;
+                e.target.blur();
                 saveQHNOptions();
             });
 
@@ -134,12 +150,6 @@
                 modeMultiplier *= -1;
                 $('#qhnModeToggle').html(modeMultiplier > 0 ? 'Increment &uarr;' : 'Decrement &darr;');
                 e.target.blur();
-            });
-
-            $('#qhnCustomInput').val(custom).on('change', (e) => {
-                custom = e.target.value;
-                e.target.blur();
-                saveQHNOptions();
             });
 
             WazeWrap.Events.register('afteraction', null, hnActionCheck);
@@ -173,9 +183,9 @@
         const lastAction = W.model.actionManager.getActions().at(-1);
         const actionHN = lastAction?.houseNumber?.getAttribute('number');
         if (actionHN && (lastAction.actionName === 'ADD_HOUSE_NUMBER' || (lastAction.actionName === 'MOVE_HOUSE_NUMBER' && autoSetHN))) {
-            lastHN = actionHN;
             tlog(`action: ${actionHN}`, lastAction.houseNumber);
-            document.getElementById('qhnLastHN').innerText = lastHN;
+            lastHN = actionHN;
+            updateTabPane();
         }
     }
 
@@ -248,10 +258,9 @@
         }
 
         lastHN = nextParts.reverse().join('');
-
-        document.getElementById('qhnLastHN').innerText = lastHN;
-
         setNativeValue(hnInput, lastHN);
+        updateTabPane();
+
         await new Promise(r => setTimeout(r, 100));
         hnInput.blur();
     }
