@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.02.06.01
+// @version      2025.02.07.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -95,11 +95,10 @@
         document.getElementById('qhnTabPane').innerHTML = lastHN ?
             `<div>Last house number: <b>${lastHN}</b></div><br/>
             <div>Press...
-            <br/><b>T</b> to add HN+1 <i>(1,2,3...)</i>
-            <br/><b>R</b> to add HN+2 <i>(1,3,5... or 2,4,6...)</i>
-            <br/><b>E</b> to add HN+${custom}
-            <br/><b>1-9</b> to ${zoomKeys ? `zoom to level 1#` : 'add HN +#'}</div>`
-            : "Manually set a house number to start using QHN";
+            ${[['T', 1], ['R', 2], ['E', custom]].reduce((list, [key, interval]) =>
+                `${list}<br/><b>${key}</b> for HN${modeMultiplier > 0 ? "+" : "-"}${interval} <i>(${getNextHNs(interval, 3).join(", ")}...)</i>`, '')}
+            <br/><b>1-9/(1)0</b> ${zoomKeys ? `to zoom to level 1#` : 'for HN +#'}</div>`
+            : "Manually set a house number to start using Quick HN";
     }
 
     function initialiseQHN() {
@@ -150,6 +149,7 @@
                 modeMultiplier *= -1;
                 $('#qhnModeToggle').html(modeMultiplier > 0 ? 'Increment &uarr;' : 'Decrement &darr;');
                 e.target.blur();
+                saveQHNOptions();
             });
 
             WazeWrap.Events.register('afteraction', null, hnActionCheck);
@@ -218,6 +218,48 @@
         element.dispatchEvent(event);
     }
 
+    function getNextHNs(interval, numHNs) {
+        const nextHNs = new Array(numHNs);
+        let baseHN = lastHN;
+
+        for (let num = 0; num < numHNs; num++) {
+            const nextParts = baseHN.match(/[0-9]+|[a-z]|[A-Z]|\S/g);
+
+            let thisInterval = interval;
+            for (const [index, part] of nextParts.reverse().entries()) {
+                if (!Number.isNaN(Number(part))) {
+                    nextParts[index] = Math.max(1, Number(part) + (thisInterval * modeMultiplier)).toString().padStart(part.length, '0');
+                    break;
+                }
+
+                if (/[a-z]/i.test(part)) {
+                    let nextLetter = part.codePointAt(0) + ((thisInterval % 26) * modeMultiplier);
+                    thisInterval = Math.floor(thisInterval / 26);
+
+                    if ((/[a-z]/.test(part) && nextLetter > 'z'.codePointAt(0)) ||
+                        (/[A-Z]/.test(part) && nextLetter > 'Z'.codePointAt(0))) {
+                        nextLetter -= 26;
+                        thisInterval++;
+                    }
+
+                    if ((/[a-z]/.test(part) && nextLetter < 'a'.codePointAt(0)) ||
+                        (/[A-Z]/.test(part) && nextLetter < 'A'.codePointAt(0))) {
+                        nextLetter += 26;
+                        thisInterval++;
+                    }
+
+                    nextParts[index] = String.fromCodePoint(nextLetter);
+
+                    if (!thisInterval) break;
+                }
+            }
+            baseHN = nextParts.reverse().join('');
+            nextHNs[num] = baseHN;
+        }
+
+        return nextHNs;
+    }
+
     async function setHN() {
         tlog('setHN');
         const hnInput = $('div.house-number.is-active input')[0];
@@ -226,38 +268,7 @@
         tlog(`sethn ctr ${lastHN} ival ${interval}`);
         fillnext = false;
 
-        const nextParts = lastHN.match(/[0-9]+|[a-z]|[A-Z]|\S/g);
-
-        for (const [index, part] of nextParts.reverse().entries()) {
-            if (!Number.isNaN(Number(part))) {
-                nextParts[index] = Math.max(1, Number(part) + (interval * modeMultiplier)).toString().padStart(part.length, '0');
-                break;
-            }
-
-            if (/[a-z]/i.test(part)) {
-                let nextLetter = part.codePointAt(0) + ((interval % 26) * modeMultiplier);
-
-                interval = Math.floor(interval / 26);
-
-                if ((/[a-z]/.test(part) && nextLetter > 'z'.codePointAt(0)) ||
-                    (/[A-Z]/.test(part) && nextLetter > 'Z'.codePointAt(0))) {
-                    nextLetter -= 26;
-                    interval++;
-                }
-
-                if ((/[a-z]/.test(part) && nextLetter < 'a'.codePointAt(0)) ||
-                    (/[A-Z]/.test(part) && nextLetter < 'A'.codePointAt(0))) {
-                    nextLetter += 26;
-                    interval++;
-                }
-
-                nextParts[index] = String.fromCodePoint(nextLetter);
-
-                if (!interval) break;
-            }
-        }
-
-        lastHN = nextParts.reverse().join('');
+        lastHN = getNextHNs(interval, 1)[0];
         setNativeValue(hnInput, lastHN);
         updateTabPane();
 
