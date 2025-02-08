@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.02.07.01
+// @version      2025.02.08.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -36,19 +36,17 @@
     let wmeSDK;
     window.SDK_INITIALIZED.then(() => {
         wmeSDK = getWmeSdk({ scriptId, scriptName });
-        wmeSDK.Events.once({ eventName: 'wme-ready' }).then(onWmeReady);
+        wmeSDK.Events.once({ eventName: 'wme-ready' }).then(async () => {
+            for (let initCount = 1; initCount <= 100; initCount++) {
+                if (WazeWrap?.Ready) return initialiseQHN();
+                else if (initCount === 1) console.log('Quick HN: Waiting for WazeWrap...');
+
+                await new Promise(r => setTimeout(r, 300));
+            }
+
+            console.error('Quick HN: WazeWrap loading failed. Giving up.');
+        });
     });
-
-    async function onWmeReady() {
-        for (let initCount = 1; initCount <= 100; initCount++) {
-            if (WazeWrap?.Ready) return initialiseQHN();
-            else if (initCount === 1) console.log('Quick HN: Waiting for WazeWrap...');
-
-            await new Promise(r => setTimeout(r, 300));
-        }
-
-        console.error('Quick HN: WazeWrap loading failed. Giving up.');
-    }
 
     function tlog(message, data = '') {
         if (!debug) return;
@@ -67,28 +65,14 @@
         updateTabPane();
     }
 
-    function createShortcut(id, desc, func, kcode) {
-        /* SDK shortcuts for when that's fixed
-        wmeSDK.Shortcuts.createShortcut({
-            callback: () => func,
-            description: desc,
-            shortcutId: id,
-            shortcutKeys: kcode,
-        });*/
+    function createShortcut(shortcutId, description, callback, shortcutKeys) {
+        // SDK shortcuts for when that's fixed
+        // wmeSDK.Shortcuts.createShortcut({ callback, description, shortcutId, shortcutKeys });
 
-        I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups[scriptId].members[id] = desc;
-        W.accelerators.addAction(id, { group: scriptId });
-        W.accelerators.events.register(id, null, func);
-        W.accelerators._registerShortcuts({ [kcode]: id });
-    }
-
-    function getOrdinal(num) {
-        return `${num}${new Map([
-            ["one", "st"],
-            ["two", "nd"],
-            ["few", "rd"],
-            ["other", "th"],
-        ]).get(new Intl.PluralRules(wmeSDK.Settings.getLocale().localeCode, { type: 'ordinal' }).select(num))}`
+        I18n.translations[wmeSDK.Settings.getLocale().localeCode].keyboard_shortcuts.groups[scriptId].members[shortcutId] = description;
+        W.accelerators.addAction(shortcutId, { group: scriptId });
+        W.accelerators.events.register(shortcutId, null, callback);
+        W.accelerators._registerShortcuts({ [shortcutKeys]: shortcutId });
     }
 
     function updateTabPane() {
@@ -113,7 +97,7 @@
         createShortcut('WME_QHN_newHN02', "Insert every 2nd house number", () => addOrZoom(2), 'r');
         createShortcut('WME_QHN_newHNcustom', "Insert house number with custom interval", () => addOrZoom(custom), 'e');
         for (let key = 1; key <= 10; key++)
-            createShortcut(`WME_QHN_newHN${key}`, `Insert every ${getOrdinal(key)} house number or zoom to level ${key + 10}`, () => addOrZoom(key, key + 10), key % 10);
+            createShortcut(`WME_QHN_newHN${key}`, `Insert house number ±${key}, or zoom to level ${key + 10}`, () => addOrZoom(key, key + 10), key % 10);
 
         wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
             tabLabel.innerText = scriptName;
@@ -205,17 +189,25 @@
         else if (zoomKeys && zoom) W.map.olMap.zoomTo(zoom);
     }
 
-    // this may be a hack but works for now.  https://stackoverflow.com/questions/30683628/react-js-setting-value-of-input
-    function setNativeValue(element, value) {
-        let lastValue = element.value;
-        element.value = value;
-        let event = new Event('input', { target: element, bubbles: true });
-        // React 15
-        event.simulated = true;
-        // React 16
-        let tracker = element._valueTracker;
-        if (tracker) tracker.setValue(lastValue)
-        element.dispatchEvent(event);
+    async function setHN() {
+        tlog('setHN');
+        const hnInput = $('div.house-number.is-active input')[0];
+        if (!fillnext || hnInput?.value !== '') return;
+
+        tlog(`sethn ctr ${lastHN} ival ${interval}`);
+        fillnext = false;
+
+        lastHN = getNextHNs(interval, 1)[0];
+
+        // React hack: https://github.com/facebook/react/issues/11488#issuecomment-884790146
+        hnInput.value = lastHN;
+        hnInput._valueTracker?.setValue("");
+        hnInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+        updateTabPane();
+
+        await new Promise(r => setTimeout(r, 100));
+        hnInput.blur();
     }
 
     function getNextHNs(interval, numHNs) {
@@ -258,21 +250,5 @@
         }
 
         return nextHNs;
-    }
-
-    async function setHN() {
-        tlog('setHN');
-        const hnInput = $('div.house-number.is-active input')[0];
-        if (!fillnext || hnInput?.value !== '') return;
-
-        tlog(`sethn ctr ${lastHN} ival ${interval}`);
-        fillnext = false;
-
-        lastHN = getNextHNs(interval, 1)[0];
-        setNativeValue(hnInput, lastHN);
-        updateTabPane();
-
-        await new Promise(r => setTimeout(r, 100));
-        hnInput.blur();
     }
 })();
