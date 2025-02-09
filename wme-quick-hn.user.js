@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.02.08.01
+// @version      2025.02.09.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -73,7 +73,6 @@
 
     function saveQHNOptions() {
         localStorage[scriptId] = JSON.stringify({ autoSetHN, zoomKeys, custom });
-        updateTabPane();
     }
 
     function initialiseQHN() {
@@ -91,6 +90,7 @@
             createShortcut(`WME_QHN_newHN${key}`, `Insert house number ±${key}, or zoom to level ${key + 10}`, () => addOrZoom(key, key + 10), key % 10);
 
         wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
+            tabLabel.id = scriptId;
             tabLabel.innerText = scriptName;
             tabLabel.title = `${scriptName} Settings`;
             tabPane.innerHTML = ((text) => policySafeHTML ? policySafeHTML.createHTML(text) : text)(`
@@ -101,28 +101,30 @@
                 <div>Mode: <button name='qhnModeToggle' id='qhnModeToggle'>Increment &uarr;</button></div><br/>
                 <div id="qhnTabPane"></div>`);
 
-            $('#qhnAutoSetHNCheckbox').on('change', (e) => {
+            document.querySelector('#qhnAutoSetHNCheckbox').addEventListener('change', (e) => {
                 autoSetHN = e.target.checked;
                 WazeWrap.Events[autoSetHN ? 'register' : 'unregister']('afteraction', null, hnActionCheck);
                 saveQHNOptions();
             });
 
-            $('#qhnZoomKeysCheckbox').on('change', (e) => {
+            document.querySelector('#qhnZoomKeysCheckbox').addEventListener('change', (e) => {
                 zoomKeys = e.target.checked;
                 saveQHNOptions();
+                updateTabPane();
             });
 
-            $('#qhnCustomInput').on('change', (e) => {
+            document.querySelector('#qhnCustomInput').addEventListener('change', (e) => {
                 custom = e.target.value;
                 e.target.blur();
                 saveQHNOptions();
+                updateNextHNs();
             });
 
-            $('#qhnModeToggle').on('click', (e) => {
+            document.querySelector('#qhnModeToggle').addEventListener('click', (e) => {
                 modeMultiplier *= -1;
-                $('#qhnModeToggle').html(modeMultiplier > 0 ? 'Increment &uarr;' : 'Decrement &darr;');
+                e.target.innerHTML = (modeMultiplier > 0 ? 'Increment &uarr;' : 'Decrement &darr;');
                 e.target.blur();
-                saveQHNOptions();
+                updateNextHNs();
             });
 
             WazeWrap.Events.register('afteraction', null, hnActionCheck);
@@ -144,7 +146,7 @@
         wmeSDK.Events.on({
             eventName: 'wme-selection-changed', eventHandler: () => {
                 if (wmeSDK.Editing.getSelection()?.objectType === 'segment')
-                    wazeMapObserver.observe(document.getElementById('WazeMap'), { childList: true, subtree: true });
+                    wazeMapObserver.observe(document.querySelector('#WazeMap'), { childList: true, subtree: true });
                 else
                     wazeMapObserver.disconnect();
                 updateTabPane();
@@ -174,16 +176,16 @@
 
             tlog('setFocus');
 
-            $('wz-button').has('.w-icon-home').trigger('click');
-            $('wz-navigation-item[selected="false"] i.w-icon-script').trigger('click');
-            $('#user-tabs li a').has(`span:contains('${scriptName}')`).trigger('click');
+            document.querySelector('wz-button:has(.w-icon-home)').click();
+            document.querySelector('wz-navigation-item[selected="false"] i.w-icon-script').click();
+            document.querySelector(`#${scriptId}`).click();
         }
         else if (zoomKeys && zoom) W.map.olMap.zoomTo(zoom);
     }
 
     async function setHN() {
         tlog('setHN');
-        const hnInput = $('div.house-number.is-active input')[0];
+        const hnInput = document.querySelector('div.house-number.is-active input');
         if (!fillnext || hnInput?.value !== '') return;
 
         fillnext = false;
@@ -245,7 +247,7 @@
     }
 
     function updateTabPane() {
-        document.getElementById('qhnTabPane').innerHTML = lastHN ?
+        document.querySelector('#qhnTabPane').innerHTML = lastHN ?
             `<div>Last house number: <b>${lastHN}</b></div><br/><div>Press...` +
             [['T', 1], ['R', 2], ['E', custom], ...[...Array(10).keys()].map(key => [(key + 1) % 10, key + 1])].reduce((list, [key, interval]) =>
                 `${list}<br/><b>${key}</b> ${zoomKeys && Number.isInteger(key) && wmeSDK.Editing.getSelection()?.objectType !== 'segment'
