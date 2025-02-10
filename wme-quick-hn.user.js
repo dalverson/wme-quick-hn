@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.02.09.01
+// @version      2025.02.10.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -16,7 +16,6 @@
 
 /* global W */
 /* global I18n */
-/* global $ */
 /* global WazeWrap */
 
 (function () {
@@ -103,7 +102,6 @@
 
             document.querySelector('#qhnAutoSetHNCheckbox').addEventListener('change', (e) => {
                 autoSetHN = e.target.checked;
-                WazeWrap.Events[autoSetHN ? 'register' : 'unregister']('afteraction', null, hnActionCheck);
                 saveQHNOptions();
             });
 
@@ -185,8 +183,8 @@
 
     async function setHN() {
         tlog('setHN');
-        const hnInput = document.querySelector('div.house-number.is-active input');
-        if (!fillnext || hnInput?.value !== '') return;
+        const hnInput = document.querySelector('div.house-number.is-active input:placeholder-shown');
+        if (!fillnext || !hnInput) return;
 
         fillnext = false;
 
