@@ -1,15 +1,17 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.02.10.01
+// @version      2025.03.23.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
 // @exclude      https://www.waze.com/*user/*editor/*
+// @exclude      https://www.waze.com/discuss/*
 // @namespace    https://greasyfork.org/users/166713
 // @homepage     https://www.waze.com/discuss/t/script-wme-quick-hn-daveacincy-fork/327021
 // @require      https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
-// @grant        none
+// @grant        GM.addStyle
+// @grant        unsafeWindow
 // @downloadURL  https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.user.js
 // @updateURL    https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.meta.js
 // ==/UserScript==
@@ -34,7 +36,7 @@
     let { autoSetHN = false, zoomKeys = false, custom = 4 } = JSON.parse(localStorage[scriptId] ?? '{}');
 
     let wmeSDK;
-    window.SDK_INITIALIZED.then(() => {
+    unsafeWindow.SDK_INITIALIZED.then(() => {
         wmeSDK = getWmeSdk({ scriptId, scriptName });
         wmeSDK.Events.once({ eventName: 'wme-ready' }).then(async () => {
             for (let initCount = 1; initCount <= 100; initCount++) {
@@ -88,17 +90,19 @@
         for (let key = 1; key <= 10; key++)
             createShortcut(`WME_QHN_newHN${key}`, `Insert house number ±${key}, or zoom to level ${key + 10}`, () => addOrZoom(key, key + 10), key % 10);
 
+        GM.addStyle('.qhn-panel { color: var(--content_p1); }');
+
         wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
             tabLabel.id = scriptId;
             tabLabel.innerText = scriptName;
             tabLabel.title = `${scriptName} Settings`;
             tabPane.innerHTML = ((text) => policySafeHTML ? policySafeHTML.createHTML(text) : text)(`
-                <div><b>Quick House Numbers</b> v${GM_info.script.version}</div><br/>
+                <div class="qhn-panel"><div><b>Quick House Numbers</b> v${GM_info.script.version}</div><br/>
                 <div><input type='checkbox' id='qhnAutoSetHNCheckbox' name='qhnAutoSetHNCheckbox' title="When enabled, auto set next HN updates the last HN based on the last HN moved" ${autoSetHN ? 'checked' : ''}> <label for='qhnAutoSetHNCheckbox'>Auto set next HN on moved HN</label></div>
                 <div><input type='checkbox' id='qhnZoomKeysCheckbox' name='qhnZoomKeysCheckbox' title="1-9 => Z11-19; 0 => Z20" ${zoomKeys ? 'checked' : ''}> <label for='qhnZoomKeysCheckbox'>Zoom Keys when no segment</label></div>
                 <div>Custom interval (E): <input type='number' id='qhnCustomInput' min='1' value='${custom}' style='width: 50px;'></div><br/>
                 <div>Mode: <button name='qhnModeToggle' id='qhnModeToggle'>Increment &uarr;</button></div><br/>
-                <div id="qhnTabPane"></div>`);
+                <div id="qhnTabPane"></div></div>`);
 
             document.querySelector('#qhnAutoSetHNCheckbox').addEventListener('change', (e) => {
                 autoSetHN = e.target.checked;
@@ -178,7 +182,7 @@
             document.querySelector('wz-navigation-item[selected="false"] i.w-icon-script').click();
             document.querySelector(`#${scriptId}`).click();
         }
-        else if (zoomKeys && zoom) W.map.olMap.zoomTo(zoom);
+        else if (zoomKeys && zoom) wmeSDK.Map.setZoomLevel( { zoomLevel: zoom } );
     }
 
     async function setHN() {
