@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN (DaveAcincy fork)
 // @description  Quick House Numbers
-// @version      2025.03.23.01
+// @version      2025.06.12.01
 // @author       Vinkoy (forked by DaveAcincy)
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*editor*
@@ -9,7 +9,6 @@
 // @exclude      https://www.waze.com/discuss/*
 // @namespace    https://greasyfork.org/users/166713
 // @homepage     https://www.waze.com/discuss/t/script-wme-quick-hn-daveacincy-fork/327021
-// @require      https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @grant        GM.addStyle
 // @grant        unsafeWindow
 // @downloadURL  https://update.greasyfork.org/scripts/458651/WME%20Quick%20HN%20%28DaveAcincy%20fork%29.user.js
@@ -38,15 +37,8 @@
     let wmeSDK;
     unsafeWindow.SDK_INITIALIZED.then(() => {
         wmeSDK = getWmeSdk({ scriptId, scriptName });
-        wmeSDK.Events.once({ eventName: 'wme-ready' }).then(async () => {
-            for (let initCount = 1; initCount <= 100; initCount++) {
-                if (WazeWrap?.Ready) return initialiseQHN();
-                else if (initCount === 1) console.log('Quick HN: Waiting for WazeWrap...');
-
-                await new Promise(r => setTimeout(r, 300));
-            }
-
-            console.error('Quick HN: WazeWrap loading failed. Giving up.');
+        wmeSDK.Events.once({ eventName: 'wme-ready' }).then( () => {
+            initialiseQHN();
         });
     });
 
@@ -129,8 +121,6 @@
                 updateNextHNs();
             });
 
-            WazeWrap.Events.register('afteraction', null, hnActionCheck);
-
             updateNextHNs();
         });
 
@@ -155,17 +145,34 @@
             }
         });
 
+        wmeSDK.Events.on({
+            eventName: "wme-house-number-added",
+            eventHandler: handleHNAdded
+        });
+        wmeSDK.Events.on({
+            eventName: "wme-house-number-moved",
+            eventHandler: handleHNMoved
+        });
+
         console.log("Quick HN: initialize complete");
     }
-
-    // Watches changes for new/moved HNs and updates lastHN
-    function hnActionCheck() {
-        const lastAction = W.model.actionManager.getActions().at(-1);
-        const actionHN = lastAction?.houseNumber?.getAttribute('number');
-        if (actionHN && (lastAction.actionName === 'ADD_HOUSE_NUMBER' || (lastAction.actionName === 'MOVE_HOUSE_NUMBER' && autoSetHN))) {
-            tlog(`action: ${actionHN}`, lastAction.houseNumber);
-            lastHN = actionHN;
+    function handleHNAdded(e) {
+        const hnid = e.houseNumberId;
+        // SDK need - wmeSDK.DataModel.HouseNumbers.getById({houseNumberId:hnid});
+        const hn = W.model.segmentHouseNumbers.getObjectById(hnid)?.attributes.number;
+        tlog('hn added event: ' + hn,e);
+        lastHN = hn;
+        updateNextHNs();
+        setTimeout(displayQHNtab, 110);
+    }
+    function handleHNMoved(e) {
+        const hnid = e.houseNumberId;
+        const hn = W.model.segmentHouseNumbers.getObjectById(hnid)?.attributes.number;
+        if (autoSetHN) {
+            tlog('hn moved event: ' + hn,e);
+            lastHN = hn;
             updateNextHNs();
+            setTimeout(displayQHNtab, 110);
         }
     }
 
@@ -178,11 +185,19 @@
 
             tlog('setFocus');
 
-            document.querySelector('wz-button:has(.w-icon-home)').click();
-            document.querySelector('wz-navigation-item[selected="false"] i.w-icon-script').click();
-            document.querySelector(`#${scriptId}`).click();
+            document.querySelector('wz-button:has(.w-icon-home)').click(); // click add HN button
         }
         else if (zoomKeys && zoom) wmeSDK.Map.setZoomLevel( { zoomLevel: zoom } );
+    }
+
+    async function displayQHNtab() {
+        // first click on userscript tab if its not selected
+        const scr = document.querySelector('#drawer > wz-navigation-item[data-for="userscript_tab"]');
+        if (scr && scr.getAttribute('selected')== 'false') { scr.click(); }
+
+        await new Promise(r => setTimeout(r, 50));
+        // then click on our tab
+        document.querySelector(`#${scriptId}`).click();
     }
 
     async function setHN() {
