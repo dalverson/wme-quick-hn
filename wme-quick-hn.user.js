@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN+RPP
 // @description  Quick House Numbers & RPPs
-// @version      2026.04.06.01
+// @version      2026.04.07.01
 // @author       DaveAcincy (original QuickHN by Vinkoy)
 // @contributors Philistine11, gncnpk, fuji2086
 // @match        https://beta.waze.com/*editor*
@@ -64,7 +64,7 @@
     }
 
     function createShortcut(shortcutId, description, callback, shortcutKeysXX) {
-        let shortcutKeys = curShortcuts[shortcutId];
+        let shortcutKeys = curShortcuts[shortcutId] || null;
         if (typeof shortcutKeys === 'string' && shortcutKeys.indexOf(',-1') >= 0) {
             shortcutKeys = null;
         }
@@ -146,7 +146,7 @@
                 if (!haveStore && wmeKeys.hasOwnProperty(key)) {
                     curShortcuts[key] = wmeKeys[key];
                 }
-                if (!curShortcuts.hasOwnProperty(key)){
+                if (!haveStore && !curShortcuts.hasOwnProperty(key)){
                     curShortcuts[key] = value;
                 }
                 if (debug) console.log(`QHN keys ${key}: ${curShortcuts[key]}`);
