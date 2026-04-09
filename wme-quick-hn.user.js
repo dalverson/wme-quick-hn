@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN+RPP
 // @description  Quick House Numbers & RPPs
-// @version      2026.04.07.01
+// @version      2026.04.09.01
 // @author       DaveAcincy (original QuickHN by Vinkoy)
 // @contributors Philistine11, gncnpk, fuji2086
 // @match        https://beta.waze.com/*editor*
@@ -41,7 +41,8 @@
     let mode = 'Off';
     let scTried = 0;
     let scAdded = 0;
-    let { autoSetHN = false, zoomKeys = false, custom = 4, lockLevel = 1 } = JSON.parse(localStorage[scriptId] ?? '{}');
+    let scNumAdded = 0;
+    let { autoSetHN = false, zoomKeys = false, custom = 4, lockLevel = 1, msgCount = 0 } = JSON.parse(localStorage[scriptId] ?? '{}');
 
     let wmeSDK;
     unsafeWindow.SDK_INITIALIZED.then(() => {
@@ -86,7 +87,10 @@
                 callback,
             });
             if (debug) console.info(`QHN: Shortcut Registration successful for "${description}" with keys: "${shortcutKeys}"`);
-            if (shortcutKeys) { scAdded++; }
+            if (shortcutKeys) {
+                scAdded++;
+                if (shortcutId.includes("newHN") && !shortcutId.includes("newHN0")) { scNumAdded++; }
+            }
             return true;
         } catch (e) {
             console.error(`QHN: Failed to register Shortcut "${description}" (${shortcutKeys}): ${e.message || e}`);
@@ -137,7 +141,13 @@
         }
 
         if (initial) {
-            const wmeKeys = JSON.parse(localStorage.keyboardShortcuts);
+            let wmeKeys;
+            try {
+                wmeKeys = JSON.parse(localStorage.keyboardShortcuts);
+            } catch(e) {
+                wmeKeys = {};
+                console.warn('QHN: error parsing wmeKeys',e);
+            }
             if (localStorage.hasOwnProperty(shortcutStore)) {
                 curShortcuts = JSON.parse(localStorage[shortcutStore]);
                 haveStore = true;
@@ -172,7 +182,7 @@
         }
     }
     function saveQHNOptions() {
-        localStorage[scriptId] = JSON.stringify({ autoSetHN, zoomKeys, custom, lockLevel });
+        localStorage[scriptId] = JSON.stringify({ autoSetHN, zoomKeys, custom, lockLevel, msgCount });
         saveShortcuts();
     }
     function showPopup(message1, message2)
@@ -453,11 +463,17 @@
         wmeSDK.Events.on({ eventName: "wme-map-layer-changed", eventHandler: handleLayerChanged });
 
         let msg2 = '';
-        if (scAdded < scTried) {
-            msg2 = 'Not all shortcuts could be added. Please make sure old version is removed.';
+        if (scNumAdded < 10) {
+            if (scNumAdded == 0) { msg2 = 'None of the 0 - 9 shortcuts could be added. You will need to set keyboard shortcuts or if there is a conflict, disable the script with conflicts.'; }
+            else { msg2 = 'Some of the 0 - 9 shortcuts could not be added.'; }
+            console.warn(`QHN shortcuts, tried ${scTried} added ${scAdded} numAdded ${scNumAdded}`);
         }
         if (!localStorage.hasOwnProperty(shortcutStore) || msg2) {
-            setTimeout(() => showPopup(msg1, msg2), 8000);
+            if (msgCount < 2) {
+                setTimeout(() => showPopup(msg1, msg2), 8000);
+                msgCount++;
+                saveQHNOptions();
+            }
             if (!msg2) {
                 saveShortcuts();
             }
