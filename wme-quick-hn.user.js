@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN+RPP
 // @description  Quick House Numbers & RPPs
-// @version      2026.04.09.01
+// @version      2026.06.18.01
 // @author       DaveAcincy (original QuickHN by Vinkoy)
 // @contributors Philistine11, gncnpk, fuji2086
 // @match        https://beta.waze.com/*editor*
@@ -635,10 +635,12 @@ async function createRPP(newInterval, useCurrentHN) {
     });
 
     // Set lock level
-    wmeSDK.DataModel.Venues.updateVenue({
-        venueId: venueIdStr,
-        lockRank: lockLevel - 1
-    });
+    if (lockLevel > 1) {
+        wmeSDK.DataModel.Venues.updateVenue({
+            venueId: venueIdStr,
+            lockRank: lockLevel - 1
+        });
+    }
 
     // Update last HN for next creation
     lastHN = nextHN;
